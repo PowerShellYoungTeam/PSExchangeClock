@@ -8,7 +8,7 @@ Add-Type -AssemblyName System.Drawing
 $DueDate = Get-Date -Date "24/12/2021" -Hour 12 -Minute 30 #Due Date/Time!
 
 $Form  = New-Object system.Windows.Forms.Form
-$Form.Width   = "500"
+$Form.Width   = "300"
 $Form.Height  = "200"
 $Form.Text = "LSE Close"
 $Form.BackColor  = "Black"
@@ -68,7 +68,7 @@ Remove-Variable tmrCountdown
 }
 
 
-Write-Host "Before $(Get-date)"
+Write-Host "Started: $(Get-date)"
 
 $Dropout = Start-Countdown
 

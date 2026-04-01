@@ -1,0 +1,222 @@
+{
+    "XNYS": {
+        "PrimaryIndex": "S&P 500 / Dow Jones",
+        "MarketCapUSD": "$25.2T",
+        "ListedCompanies": 2400,
+        "Currency": "USD",
+        "CurrencySymbol": "$",
+        "Founded": 1792,
+        "Website": "https://www.nyse.com",
+        "Regulator": "SEC",
+        "Description": "The New York Stock Exchange is the world's largest stock exchange by market capitalization, located on Wall Street in New York City."
+    },
+    "XNAS": {
+        "PrimaryIndex": "NASDAQ Composite",
+        "MarketCapUSD": "$22.1T",
+        "ListedCompanies": 3300,
+        "Currency": "USD",
+        "CurrencySymbol": "$",
+        "Founded": 1971,
+        "Website": "https://www.nasdaq.com",
+        "Regulator": "SEC",
+        "Description": "NASDAQ is an American electronic stock exchange and the second-largest in the world, known for listing major technology companies."
+    },
+    "XLON": {
+        "PrimaryIndex": "FTSE 100",
+        "MarketCapUSD": "$3.1T",
+        "ListedCompanies": 2000,
+        "Currency": "GBP",
+        "CurrencySymbol": "£",
+        "Founded": 1801,
+        "Website": "https://www.londonstockexchange.com",
+        "Regulator": "FCA",
+        "Description": "The London Stock Exchange is one of the world's oldest and largest stock exchanges, and the primary exchange in the United Kingdom."
+    },
+    "XPAR": {
+        "PrimaryIndex": "CAC 40",
+        "MarketCapUSD": "$2.8T",
+        "ListedCompanies": 800,
+        "Currency": "EUR",
+        "CurrencySymbol": "€",
+        "Founded": 1724,
+        "Website": "https://www.euronext.com/en/markets/paris",
+        "Regulator": "AMF",
+        "Description": "Euronext Paris is the French stock exchange, part of the pan-European Euronext group, and home to the CAC 40 index."
+    },
+    "XTKS": {
+        "PrimaryIndex": "Nikkei 225",
+        "MarketCapUSD": "$5.6T",
+        "ListedCompanies": 3900,
+        "Currency": "JPY",
+        "CurrencySymbol": "¥",
+        "Founded": 1878,
+        "Website": "https://www.jpx.co.jp/english",
+        "Regulator": "FSA Japan",
+        "Description": "The Tokyo Stock Exchange is the largest exchange in Japan and the third-largest in the world by market capitalization."
+    },
+    "XSHG": {
+        "PrimaryIndex": "SSE Composite",
+        "MarketCapUSD": "$6.5T",
+        "ListedCompanies": 2200,
+        "Currency": "CNY",
+        "CurrencySymbol": "¥",
+        "Founded": 1990,
+        "Website": "http://english.sse.com.cn",
+        "Regulator": "CSRC",
+        "Description": "The Shanghai Stock Exchange is one of China's two major exchanges and the third-largest in the world by market capitalization."
+    },
+    "XHKG": {
+        "PrimaryIndex": "Hang Seng",
+        "MarketCapUSD": "$4.0T",
+        "ListedCompanies": 2600,
+        "Currency": "HKD",
+        "CurrencySymbol": "HK$",
+        "Founded": 1891,
+        "Website": "https://www.hkex.com.hk",
+        "Regulator": "SFC",
+        "Description": "Hong Kong Exchanges and Clearing operates the Hong Kong Stock Exchange, a major gateway for international investment into China."
+    },
+    "XTSE": {
+        "PrimaryIndex": "S&P/TSX Composite",
+        "MarketCapUSD": "$2.6T",
+        "ListedCompanies": 1500,
+        "Currency": "CAD",
+        "CurrencySymbol": "C$",
+        "Founded": 1852,
+        "Website": "https://www.tsx.com",
+        "Regulator": "OSC",
+        "Description": "The Toronto Stock Exchange is the largest exchange in Canada and the ninth-largest in the world, strong in mining and energy sectors."
+    },
+    "XETR": {
+        "PrimaryIndex": "DAX 40",
+        "MarketCapUSD": "$2.2T",
+        "ListedCompanies": 450,
+        "Currency": "EUR",
+        "CurrencySymbol": "€",
+        "Founded": 1585,
+        "Website": "https://www.deutsche-boerse.com",
+        "Regulator": "BaFin",
+        "Description": "The Frankfurt Stock Exchange (Xetra) is the largest of Germany's seven stock exchanges and one of the most important in Europe."
+    },
+    "XASX": {
+        "PrimaryIndex": "S&P/ASX 200",
+        "MarketCapUSD": "$1.7T",
+        "ListedCompanies": 2200,
+        "Currency": "AUD",
+        "CurrencySymbol": "A$",
+        "Founded": 1861,
+        "Website": "https://www2.asx.com.au",
+        "Regulator": "ASIC",
+        "Description": "The Australian Securities Exchange is Australia's primary exchange, strong in mining, banking, and commodities sectors."
+    },
+    "XBOM": {
+        "PrimaryIndex": "BSE SENSEX",
+        "MarketCapUSD": "$4.2T",
+        "ListedCompanies": 5500,
+        "Currency": "INR",
+        "CurrencySymbol": "₹",
+        "Founded": 1875,
+        "Website": "https://www.bseindia.com",
+        "Regulator": "SEBI",
+        "Description": "The Bombay Stock Exchange is Asia's oldest stock exchange and one of India's two major exchanges, home to the SENSEX index."
+    },
+    "XNSE": {
+        "PrimaryIndex": "NIFTY 50",
+        "MarketCapUSD": "$3.8T",
+        "ListedCompanies": 2100,
+        "Currency": "INR",
+        "CurrencySymbol": "₹",
+        "Founded": 1992,
+        "Website": "https://www.nseindia.com",
+        "Regulator": "SEBI",
+        "Description": "The National Stock Exchange of India is India's largest exchange by trading volume and home to the NIFTY 50 benchmark index."
+    },
+    "XKRX": {
+        "PrimaryIndex": "KOSPI",
+        "MarketCapUSD": "$1.8T",
+        "ListedCompanies": 2500,
+        "Currency": "KRW",
+        "CurrencySymbol": "₩",
+        "Founded": 1956,
+        "Website": "http://global.krx.co.kr",
+        "Regulator": "FSC Korea",
+        "Description": "The Korea Exchange operates South Korea's securities and derivatives markets, home to the KOSPI index."
+    },
+    "XSWX": {
+        "PrimaryIndex": "SMI",
+        "MarketCapUSD": "$1.7T",
+        "ListedCompanies": 250,
+        "Currency": "CHF",
+        "CurrencySymbol": "CHF",
+        "Founded": 1850,
+        "Website": "https://www.six-group.com/en/products-services/the-swiss-stock-exchange.html",
+        "Regulator": "FINMA",
+        "Description": "SIX Swiss Exchange is Switzerland's principal stock exchange, known for listing major pharmaceutical and financial companies."
+    },
+    "XJSE": {
+        "PrimaryIndex": "JSE Top 40",
+        "MarketCapUSD": "$1.0T",
+        "ListedCompanies": 350,
+        "Currency": "ZAR",
+        "CurrencySymbol": "R",
+        "Founded": 1887,
+        "Website": "https://www.jse.co.za",
+        "Regulator": "FSCA",
+        "Description": "The Johannesburg Stock Exchange is the largest exchange in Africa and among the top 20 globally, strong in mining and resources."
+    },
+    "BVMF": {
+        "PrimaryIndex": "Ibovespa",
+        "MarketCapUSD": "$0.8T",
+        "ListedCompanies": 350,
+        "Currency": "BRL",
+        "CurrencySymbol": "R$",
+        "Founded": 1890,
+        "Website": "https://www.b3.com.br/en_us",
+        "Regulator": "CVM",
+        "Description": "B3 (Brasil Bolsa Balcão) is the main stock exchange in Brazil and Latin America's largest, formed by the merger of BM&FBOVESPA and CETIP."
+    },
+    "XMEX": {
+        "PrimaryIndex": "IPC (S&P/BMV IPC)",
+        "MarketCapUSD": "$0.4T",
+        "ListedCompanies": 140,
+        "Currency": "MXN",
+        "CurrencySymbol": "MX$",
+        "Founded": 1886,
+        "Website": "https://www.bmv.com.mx",
+        "Regulator": "CNBV",
+        "Description": "The Mexican Stock Exchange (Bolsa Mexicana de Valores) is Mexico's only stock exchange, tracking the IPC index."
+    },
+    "XSES": {
+        "PrimaryIndex": "Straits Times Index",
+        "MarketCapUSD": "$0.6T",
+        "ListedCompanies": 700,
+        "Currency": "SGD",
+        "CurrencySymbol": "S$",
+        "Founded": 1973,
+        "Website": "https://www.sgx.com",
+        "Regulator": "MAS",
+        "Description": "Singapore Exchange is the main stock exchange in Singapore, a key financial hub in Southeast Asia."
+    },
+    "XTAI": {
+        "PrimaryIndex": "TAIEX",
+        "MarketCapUSD": "$1.8T",
+        "ListedCompanies": 960,
+        "Currency": "TWD",
+        "CurrencySymbol": "NT$",
+        "Founded": 1961,
+        "Website": "https://www.twse.com.tw/en",
+        "Regulator": "FSC Taiwan",
+        "Description": "The Taiwan Stock Exchange is Taiwan's primary securities exchange, heavily weighted toward the semiconductor industry."
+    },
+    "XMOS": {
+        "PrimaryIndex": "MOEX Russia Index",
+        "MarketCapUSD": "$0.6T",
+        "ListedCompanies": 250,
+        "Currency": "RUB",
+        "CurrencySymbol": "₽",
+        "Founded": 2011,
+        "Website": "https://www.moex.com/en",
+        "Regulator": "Bank of Russia",
+        "Description": "Moscow Exchange is Russia's largest exchange group, operating trading markets in equities, bonds, derivatives, currencies, and commodities."
+    }
+}

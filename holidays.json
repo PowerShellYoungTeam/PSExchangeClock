@@ -1,0 +1,23 @@
+{
+    "_comment": "Holiday dates per exchange in ISO 8601 format (YYYY-MM-DD). Add dates to disable countdown on market holidays.",
+    "XNYS": [],
+    "XNAS": [],
+    "XLON": [],
+    "XPAR": [],
+    "XTKS": [],
+    "XSHG": [],
+    "XHKG": [],
+    "XTSE": [],
+    "XETR": [],
+    "XASX": [],
+    "XBOM": [],
+    "XNSE": [],
+    "XKRX": [],
+    "XSWX": [],
+    "XJSE": [],
+    "BVMF": [],
+    "XMEX": [],
+    "XSES": [],
+    "XTAI": [],
+    "XMOS": []
+}

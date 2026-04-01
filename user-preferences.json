@@ -1,0 +1,23 @@
+{
+  "ActiveExchanges": [
+    "XNYS",
+    "XNAS",
+    "XLON",
+    "XPAR",
+    "XTKS",
+    "XSHG",
+    "XHKG",
+    "XTSE",
+    "XETR",
+    "XASX",
+    "XNSE",
+    "BVMF",
+    "XSES"
+  ],
+  "NotifyThresholds": [
+    30,
+    15,
+    5
+  ],
+  "AlwaysOnTop": false
+}

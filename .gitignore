@@ -1,0 +1,18 @@
+# User preferences (contains API keys and personal settings)
+user-preferences.json
+
+# Downloaded assets
+worldmap.jpg
+
+# PowerShell artifacts
+*.pdb
+
+# IDE / Editor
+.vscode/launch.json
+.vscode/settings.json
+
+# Logs
+*.log
+
+# Encrypted key stores (Phase 5)
+api-keys.clixml

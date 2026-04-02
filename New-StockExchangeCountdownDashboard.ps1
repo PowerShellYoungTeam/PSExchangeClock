@@ -88,9 +88,11 @@ if (-not (Test-Path $mapImagePath)) {
 function Save-UserPreferences {
     $activeExchanges = @($script:exchangeRows | Where-Object { $_.IsActive } | ForEach-Object { $_.Code })
     $prefs = @{
-        ActiveExchanges  = $activeExchanges
-        NotifyThresholds = @(30, 15, 5)
-        AlwaysOnTop      = $false
+        ActiveExchanges       = $activeExchanges
+        NotifyThresholds      = @(30, 15, 5)
+        AlwaysOnTop           = $false
+        CommodityBaseCurrency = $script:commodityBaseCurrency
+        SecretsBackend        = $script:secretsBackend
     }
     try {
         if ($chkNotify30) { $prefs.NotifyThresholds = @() }
@@ -98,11 +100,194 @@ function Save-UserPreferences {
         if ($chkNotify15 -and $chkNotify15.IsChecked) { $prefs.NotifyThresholds += 15 }
         if ($chkNotify5 -and $chkNotify5.IsChecked) { $prefs.NotifyThresholds += 5 }
         if ($chkAlwaysOnTop) { $prefs.AlwaysOnTop = [bool]$chkAlwaysOnTop.IsChecked }
-        if ($txtTwelveDataKey) { $prefs['TwelveDataApiKey'] = $txtTwelveDataKey.Text.Trim() }
-        if ($txtAlphaVantageKey) { $prefs['AlphaVantageApiKey'] = $txtAlphaVantageKey.Text.Trim() }
     }
     catch { }
+    # API keys are stored via the secrets backend, not in JSON
     $prefs | ConvertTo-Json -Depth 3 | Set-Content -Path $prefsPath -Encoding UTF8
+}
+
+# ── Secure API Key Storage ────────────────────────────────────
+
+# Windows Credential Manager P/Invoke (used by CredentialManager backend)
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class CredManager {
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool CredReadW(string target, int type, int flags, out IntPtr credential);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool CredWriteW(ref CREDENTIAL credential, int flags);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool CredDeleteW(string target, int type, int flags);
+
+    [DllImport("advapi32.dll")]
+    private static extern void CredFree(IntPtr buffer);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct CREDENTIAL {
+        public int Flags;
+        public int Type;
+        public string TargetName;
+        public string Comment;
+        public long LastWritten;
+        public int CredentialBlobSize;
+        public IntPtr CredentialBlob;
+        public int Persist;
+        public int AttributeCount;
+        public IntPtr Attributes;
+        public string TargetAlias;
+        public string UserName;
+    }
+
+    private const int CRED_TYPE_GENERIC = 1;
+    private const int CRED_PERSIST_LOCAL_MACHINE = 2;
+
+    public static string Read(string target) {
+        IntPtr credPtr;
+        if (!CredReadW(target, CRED_TYPE_GENERIC, 0, out credPtr)) return null;
+        try {
+            CREDENTIAL cred = (CREDENTIAL)Marshal.PtrToStructure(credPtr, typeof(CREDENTIAL));
+            if (cred.CredentialBlobSize > 0) {
+                return Marshal.PtrToStringUni(cred.CredentialBlob, cred.CredentialBlobSize / 2);
+            }
+            return null;
+        } finally { CredFree(credPtr); }
+    }
+
+    public static bool Write(string target, string secret, string userName) {
+        byte[] bytes = Encoding.Unicode.GetBytes(secret);
+        CREDENTIAL cred = new CREDENTIAL();
+        cred.Type = CRED_TYPE_GENERIC;
+        cred.TargetName = target;
+        cred.CredentialBlobSize = bytes.Length;
+        cred.CredentialBlob = Marshal.AllocHGlobal(bytes.Length);
+        cred.Persist = CRED_PERSIST_LOCAL_MACHINE;
+        cred.UserName = userName;
+        try {
+            Marshal.Copy(bytes, 0, cred.CredentialBlob, bytes.Length);
+            return CredWriteW(ref cred, 0);
+        } finally { Marshal.FreeHGlobal(cred.CredentialBlob); }
+    }
+
+    public static bool Delete(string target) {
+        return CredDeleteW(target, CRED_TYPE_GENERIC, 0);
+    }
+}
+'@ -ErrorAction SilentlyContinue
+
+function Get-SecureApiKey {
+    param(
+        [Parameter(Mandatory)][string]$ServiceName,
+        [string]$Backend = $script:secretsBackend
+    )
+    $target = "CountdownDashboard_$ServiceName"
+    switch ($Backend) {
+        'CredentialManager' {
+            try { return [CredManager]::Read($target) }
+            catch { Write-Verbose "CredManager read failed: $_"; return $null }
+        }
+        'SecretManagement' {
+            try {
+                if (-not (Get-Module -ListAvailable -Name Microsoft.PowerShell.SecretManagement)) { return $null }
+                Import-Module Microsoft.PowerShell.SecretManagement -ErrorAction Stop
+                $secret = Get-Secret -Name $target -AsPlainText -ErrorAction Stop
+                return $secret
+            }
+            catch { Write-Verbose "SecretManagement read failed: $_"; return $null }
+        }
+        'CliXml' {
+            try {
+                $xmlPath = Join-Path $env:APPDATA 'CountdownDashboard\api-keys.clixml'
+                if (-not (Test-Path $xmlPath)) { return $null }
+                $store = Import-Clixml -Path $xmlPath
+                if ($store.ContainsKey($target)) {
+                    $ss = $store[$target]
+                    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($ss)
+                    try { return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
+                    finally { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+                }
+                return $null
+            }
+            catch { Write-Verbose "CliXml read failed: $_"; return $null }
+        }
+        default { return $null }
+    }
+}
+
+function Set-SecureApiKey {
+    param(
+        [Parameter(Mandatory)][string]$ServiceName,
+        [Parameter(Mandatory)][string]$ApiKey,
+        [string]$Backend = $script:secretsBackend
+    )
+    if ([string]::IsNullOrWhiteSpace($ApiKey)) { return $false }
+    $target = "CountdownDashboard_$ServiceName"
+    switch ($Backend) {
+        'CredentialManager' {
+            try { return [CredManager]::Write($target, $ApiKey, $ServiceName) }
+            catch { Write-Verbose "CredManager write failed: $_"; return $false }
+        }
+        'SecretManagement' {
+            try {
+                if (-not (Get-Module -ListAvailable -Name Microsoft.PowerShell.SecretManagement)) { return $false }
+                Import-Module Microsoft.PowerShell.SecretManagement -ErrorAction Stop
+                Set-Secret -Name $target -Secret $ApiKey -ErrorAction Stop
+                return $true
+            }
+            catch { Write-Verbose "SecretManagement write failed: $_"; return $false }
+        }
+        'CliXml' {
+            try {
+                $xmlDir = Join-Path $env:APPDATA 'CountdownDashboard'
+                $xmlPath = Join-Path $xmlDir 'api-keys.clixml'
+                if (-not (Test-Path $xmlDir)) { New-Item -Path $xmlDir -ItemType Directory -Force | Out-Null }
+                $store = @{}
+                if (Test-Path $xmlPath) { $store = Import-Clixml -Path $xmlPath }
+                $store[$target] = ConvertTo-SecureString -String $ApiKey -AsPlainText -Force
+                $store | Export-Clixml -Path $xmlPath -Force
+                return $true
+            }
+            catch { Write-Verbose "CliXml write failed: $_"; return $false }
+        }
+        default { return $false }
+    }
+}
+
+function Remove-SecureApiKey {
+    param(
+        [Parameter(Mandatory)][string]$ServiceName,
+        [string]$Backend = $script:secretsBackend
+    )
+    $target = "CountdownDashboard_$ServiceName"
+    switch ($Backend) {
+        'CredentialManager' {
+            try { [CredManager]::Delete($target) | Out-Null } catch { }
+        }
+        'SecretManagement' {
+            try {
+                if (Get-Module -ListAvailable -Name Microsoft.PowerShell.SecretManagement) {
+                    Import-Module Microsoft.PowerShell.SecretManagement -ErrorAction Stop
+                    Remove-Secret -Name $target -ErrorAction Stop
+                }
+            }
+            catch { }
+        }
+        'CliXml' {
+            try {
+                $xmlPath = Join-Path $env:APPDATA 'CountdownDashboard\api-keys.clixml'
+                if (Test-Path $xmlPath) {
+                    $store = Import-Clixml -Path $xmlPath
+                    $store.Remove($target) | Out-Null
+                    $store | Export-Clixml -Path $xmlPath -Force
+                }
+            }
+            catch { }
+        }
+    }
 }
 
 # ── Countdown Engine Functions ────────────────────────────────
@@ -225,6 +410,80 @@ $xaml = @'
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="tabBorder" Property="Background" Value="#1A3A6E"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark-themed ComboBox ControlTemplate -->
+        <ControlTemplate x:Key="DarkComboBoxToggleButton" TargetType="ToggleButton">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="20"/>
+                </Grid.ColumnDefinitions>
+                <Border x:Name="Border" Grid.ColumnSpan="2" Background="#16213E" BorderBrush="#0F3460" BorderThickness="1" CornerRadius="3"/>
+                <Border Grid.Column="0" Background="#16213E" BorderBrush="#0F3460" BorderThickness="0" CornerRadius="3,0,0,3" Margin="1"/>
+                <Path x:Name="Arrow" Grid.Column="1" Fill="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0 Z"/>
+            </Grid>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Border" Property="Background" Value="#1A3A6E"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="DarkComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="Background" Value="#16213E"/>
+            <Setter Property="BorderBrush" Value="#0F3460"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="MinWidth" Value="80"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Name="ToggleButton" Template="{StaticResource DarkComboBoxToggleButton}"
+                                          Focusable="False" IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press"/>
+                            <ContentPresenter Name="ContentSite" IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              Margin="6,3,23,3" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                            <Popup Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                                <Grid Name="DropDown" SnapsToDevicePixels="True" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="300">
+                                    <Border x:Name="DropDownBorder" Background="#16213E" BorderBrush="#0F3460" BorderThickness="1" CornerRadius="0,0,3,3"/>
+                                    <ScrollViewer Margin="2" SnapsToDevicePixels="True">
+                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="Background" Value="#16213E"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1A3A6E"/>
+                                <Setter Property="Foreground" Value="#00CC66"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1A3A6E"/>
+                                <Setter Property="Foreground" Value="#00CC66"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -467,6 +726,12 @@ $xaml = @'
 
                         <Button x:Name="btnSaveApiKeys" Content="  Save API Keys  " Background="#0F3460" Foreground="#E0E0E0" Padding="10,5" BorderBrush="#00CC66" Margin="10,10,10,0" FontSize="13" Cursor="Hand" HorizontalAlignment="Left"/>
 
+                        <StackPanel Margin="10,15,10,5">
+                            <TextBlock Text="Key Storage Backend" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,3"/>
+                            <ComboBox x:Name="cmbSecretsBackend" Width="220" HorizontalAlignment="Left" Style="{StaticResource DarkComboBoxStyle}" ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"/>
+                            <TextBlock x:Name="txtSecretsBackendNote" Text="" Foreground="#666666" FontSize="9" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+
                         <TextBlock x:Name="txtLastUpdated" Text="Last updated: --" Foreground="#888888" Margin="10,15,0,0" FontSize="12"/>
                     </StackPanel>
                 </ScrollViewer>
@@ -535,11 +800,38 @@ $txtAlphaVantageKey = $window.FindName('txtAlphaVantageKey')
 $txtTwelveDataStatus = $window.FindName('txtTwelveDataStatus')
 $txtAlphaVantageStatus = $window.FindName('txtAlphaVantageStatus')
 $btnSaveApiKeys = $window.FindName('btnSaveApiKeys')
+$cmbSecretsBackend = $window.FindName('cmbSecretsBackend')
+$txtSecretsBackendNote = $window.FindName('txtSecretsBackendNote')
+
+# Populate secrets backend ComboBox
+$secretsBackendOptions = @(
+    @{ Label = 'Windows Credential Manager'; Value = 'CredentialManager'; Note = 'Default. Uses Windows Credential Manager (DPAPI-encrypted, per-user).' },
+    @{ Label = 'SecretManagement Module'; Value = 'SecretManagement'; Note = 'Requires Microsoft.PowerShell.SecretManagement module and a registered vault.' },
+    @{ Label = 'Encrypted XML (DPAPI)'; Value = 'CliXml'; Note = 'Export-Clixml with DPAPI. Stored in %APPDATA%\CountdownDashboard\api-keys.clixml.' }
+)
+foreach ($opt in $secretsBackendOptions) {
+    $item = New-Object System.Windows.Controls.ComboBoxItem
+    $item.Content = $opt.Label; $item.Tag = $opt.Value
+    $cmbSecretsBackend.Items.Add($item) | Out-Null
+}
+$cmbSecretsBackend.SelectedIndex = 0
+$txtSecretsBackendNote.Text = $secretsBackendOptions[0].Note
+
+$cmbSecretsBackend.Add_SelectionChanged({
+        $selected = $cmbSecretsBackend.SelectedItem
+        if ($selected -and $selected.Tag) {
+            $script:secretsBackend = $selected.Tag
+            $note = ($secretsBackendOptions | Where-Object { $_.Value -eq $selected.Tag }).Note
+            $txtSecretsBackendNote.Text = $note
+        }
+    }.GetNewClosure())
 
 $script:currentFlyoutCode = $null
 $script:activeMarketTab = 'News'
 $script:fxBaseCurrency = 'USD'
 $script:cryptoCurrency = 'usd'
+$script:commodityBaseCurrency = 'USD'
+$script:secretsBackend = 'CredentialManager'
 
 # ── Market Data Cache ─────────────────────────────────────────
 
@@ -778,11 +1070,11 @@ function Get-StockIndices {
 }
 
 function Get-CommodityPrices {
-    param([string]$ApiKey)
+    param([string]$ApiKey, [string]$BaseCurrency = 'USD')
     if ([string]::IsNullOrWhiteSpace($ApiKey)) { return $null }
 
-    # Check cache (15 minute TTL)
-    if ($script:commoditiesCache.Data -and ([datetime]::Now - $script:commoditiesCache.LastFetch).TotalMinutes -lt 15) {
+    # Check cache (15 minute TTL, invalidate if currency changed)
+    if ($script:commoditiesCache.Data -and $script:commoditiesCache.Currency -eq $BaseCurrency -and ([datetime]::Now - $script:commoditiesCache.LastFetch).TotalMinutes -lt 15) {
         return $script:commoditiesCache.Data
     }
 
@@ -802,6 +1094,22 @@ function Get-CommodityPrices {
         $symbolList = ($commodities | ForEach-Object { $_.Symbol }) -join ','
         $url = "https://api.twelvedata.com/quote?symbol=$symbolList&apikey=$ApiKey"
         $response = Invoke-RestMethod -Uri $url -TimeoutSec 15
+
+        # Get FX conversion rate if not USD
+        $fxRate = 1.0
+        if ($BaseCurrency -ne 'USD') {
+            try {
+                $fxUrl = "https://api.frankfurter.dev/v1/latest?base=USD&symbols=$BaseCurrency"
+                $fxResponse = Invoke-RestMethod -Uri $fxUrl -TimeoutSec 10
+                $fxRate = [double]$fxResponse.rates.$BaseCurrency
+            }
+            catch {
+                Write-Verbose "FX conversion failed, showing USD prices: $($_.Exception.Message)"
+                $fxRate = 1.0
+                $BaseCurrency = 'USD'
+            }
+        }
+
         foreach ($cmd in $commodities) {
             $data = if ($commodities.Count -eq 1) { $response } else { $response.($cmd.Symbol) }
             if ($data -and $data.close -and -not $data.code) {
@@ -810,15 +1118,17 @@ function Get-CommodityPrices {
                     $change = [math]::Round((([double]$data.close - [double]$data.previous_close) / [double]$data.previous_close) * 100, 2)
                 }
                 $result += [PSCustomObject]@{
-                    Symbol = $cmd.Symbol
-                    Name   = $cmd.Name
-                    Price  = [math]::Round([double]$data.close, 2)
-                    Change = $change
+                    Symbol   = $cmd.Symbol
+                    Name     = $cmd.Name
+                    Price    = [math]::Round([double]$data.close * $fxRate, 2)
+                    Change   = $change
+                    Currency = $BaseCurrency
                 }
             }
         }
         if ($result.Count -gt 0) {
             $script:commoditiesCache.Data = $result
+            $script:commoditiesCache.Currency = $BaseCurrency
             $script:commoditiesCache.LastFetch = [datetime]::Now
         }
         return $result
@@ -869,6 +1179,121 @@ function Get-StockQuote {
     }
 }
 
+# ── Major Stocks Quick-Pick Data ──────────────────────────────
+
+$script:majorStocks = [ordered]@{
+    'US'           = @(
+        @{ Symbol = 'AAPL'; Name = 'Apple' }, @{ Symbol = 'MSFT'; Name = 'Microsoft' },
+        @{ Symbol = 'AMZN'; Name = 'Amazon' }, @{ Symbol = 'GOOGL'; Name = 'Alphabet' },
+        @{ Symbol = 'META'; Name = 'Meta' }, @{ Symbol = 'TSLA'; Name = 'Tesla' },
+        @{ Symbol = 'NVDA'; Name = 'NVIDIA' }, @{ Symbol = 'JPM'; Name = 'JPMorgan' },
+        @{ Symbol = 'V'; Name = 'Visa' }, @{ Symbol = 'JNJ'; Name = 'J&J' }
+    )
+    'UK'           = @(
+        @{ Symbol = 'LLOY.L'; Name = 'Lloyds' }, @{ Symbol = 'BARC.L'; Name = 'Barclays' },
+        @{ Symbol = 'BP.L'; Name = 'BP' }, @{ Symbol = 'SHEL.L'; Name = 'Shell' },
+        @{ Symbol = 'HSBA.L'; Name = 'HSBC' }, @{ Symbol = 'AZN.L'; Name = 'AstraZeneca' },
+        @{ Symbol = 'GSK.L'; Name = 'GSK' }, @{ Symbol = 'RIO.L'; Name = 'Rio Tinto' },
+        @{ Symbol = 'VOD.L'; Name = 'Vodafone' }, @{ Symbol = 'ULVR.L'; Name = 'Unilever' }
+    )
+    'Europe'       = @(
+        @{ Symbol = 'SAP.DE'; Name = 'SAP' }, @{ Symbol = 'SIE.DE'; Name = 'Siemens' },
+        @{ Symbol = 'MC.PA'; Name = 'LVMH' }, @{ Symbol = 'OR.PA'; Name = "L'Or" + [char]0x00E9 + "al" },
+        @{ Symbol = 'ASML.AS'; Name = 'ASML' }, @{ Symbol = 'NESN.SW'; Name = 'Nestl' + [char]0x00E9 }
+    )
+    'Asia-Pacific' = @(
+        @{ Symbol = '9984.T'; Name = 'SoftBank' }, @{ Symbol = '7203.T'; Name = 'Toyota' },
+        @{ Symbol = '0005.HK'; Name = 'HSBC HK' }, @{ Symbol = '0700.HK'; Name = 'Tencent' },
+        @{ Symbol = 'BHP.AX'; Name = 'BHP' }, @{ Symbol = 'CBA.AX'; Name = 'CommBank' }
+    )
+}
+$script:selectedStockRegion = 'US'
+
+# ── Stock Profile & Statistics (Twelve Data) ──────────────────
+
+$script:stockProfileCache = @{}
+$script:stockStatsCache = @{}
+
+function Get-StockProfile {
+    param([string]$ApiKey, [string]$Ticker)
+    if ([string]::IsNullOrWhiteSpace($ApiKey) -or [string]::IsNullOrWhiteSpace($Ticker)) { return $null }
+    $Ticker = $Ticker.Trim().ToUpper()
+
+    # Check cache (24hr TTL)
+    if ($script:stockProfileCache.ContainsKey($Ticker)) {
+        $cached = $script:stockProfileCache[$Ticker]
+        if ($cached.Data -and ([datetime]::Now - $cached.LastFetch).TotalHours -lt 24) {
+            return $cached.Data
+        }
+    }
+
+    try {
+        $url = "https://api.twelvedata.com/profile?symbol=$Ticker&apikey=$ApiKey"
+        $response = Invoke-RestMethod -Uri $url -TimeoutSec 10
+        if ($response -and $response.name -and -not $response.code) {
+            $result = [PSCustomObject]@{
+                Name        = $response.name
+                Sector      = $response.sector
+                Industry    = $response.industry
+                Exchange    = $response.exchange
+                Country     = $response.country
+                Employees   = $response.employees
+                Website     = $response.website
+                CEO         = $response.CEO
+                Description = $response.description
+            }
+            $script:stockProfileCache[$Ticker] = @{ Data = $result; LastFetch = [datetime]::Now }
+            return $result
+        }
+        return $null
+    }
+    catch {
+        Write-Verbose "Twelve Data profile failed for $Ticker`: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Get-StockStatistics {
+    param([string]$ApiKey, [string]$Ticker)
+    if ([string]::IsNullOrWhiteSpace($ApiKey) -or [string]::IsNullOrWhiteSpace($Ticker)) { return $null }
+    $Ticker = $Ticker.Trim().ToUpper()
+
+    # Check cache (1hr TTL)
+    if ($script:stockStatsCache.ContainsKey($Ticker)) {
+        $cached = $script:stockStatsCache[$Ticker]
+        if ($cached.Data -and ([datetime]::Now - $cached.LastFetch).TotalHours -lt 1) {
+            return $cached.Data
+        }
+    }
+
+    try {
+        $url = "https://api.twelvedata.com/statistics?symbol=$Ticker&apikey=$ApiKey"
+        $response = Invoke-RestMethod -Uri $url -TimeoutSec 10
+        if ($response -and $response.statistics -and -not $response.code) {
+            $stats = $response.statistics
+            $result = [PSCustomObject]@{
+                MarketCap         = if ($stats.valuations_metrics.market_capitalization) { [double]$stats.valuations_metrics.market_capitalization } else { $null }
+                TrailingPE        = if ($stats.valuations_metrics.trailing_pe) { [math]::Round([double]$stats.valuations_metrics.trailing_pe, 2) } else { $null }
+                ForwardPE         = if ($stats.valuations_metrics.forward_pe) { [math]::Round([double]$stats.valuations_metrics.forward_pe, 2) } else { $null }
+                Week52High        = if ($stats.stock_price_summary.fifty_two_week_high) { [math]::Round([double]$stats.stock_price_summary.fifty_two_week_high, 2) } else { $null }
+                Week52Low         = if ($stats.stock_price_summary.fifty_two_week_low) { [math]::Round([double]$stats.stock_price_summary.fifty_two_week_low, 2) } else { $null }
+                Beta              = if ($stats.stock_price_summary.beta) { [math]::Round([double]$stats.stock_price_summary.beta, 3) } else { $null }
+                DividendYield     = if ($stats.dividends_and_splits.forward_annual_dividend_yield) { [math]::Round([double]$stats.dividends_and_splits.forward_annual_dividend_yield * 100, 2) } else { $null }
+                DividendFreq      = $stats.dividends_and_splits.dividend_frequency
+                SharesOutstanding = if ($stats.stock_statistics.shares_outstanding) { [double]$stats.stock_statistics.shares_outstanding } else { $null }
+                ProfitMargin      = if ($stats.financials.profit_margin) { [math]::Round([double]$stats.financials.profit_margin * 100, 2) } else { $null }
+            }
+            $script:stockStatsCache[$Ticker] = @{ Data = $result; LastFetch = [datetime]::Now }
+            return $result
+        }
+        return $null
+    }
+    catch {
+        Write-Verbose "Twelve Data statistics failed for $Ticker`: $($_.Exception.Message)"
+        return $null
+    }
+}
+
 # ── Market Data Panel Rendering ───────────────────────────────
 
 function Format-RelativeTime {
@@ -886,6 +1311,14 @@ function Format-LargeNumber {
     if ($Number -ge 1e9) { return "$([math]::Round($Number / 1e9, 2))B" }
     if ($Number -ge 1e6) { return "$([math]::Round($Number / 1e6, 2))M" }
     return $Number.ToString('N0')
+}
+
+function New-ThemedComboBox {
+    $cmb = New-Object System.Windows.Controls.ComboBox
+    $cmb.Style = $window.FindResource('DarkComboBoxStyle')
+    $cmb.ItemContainerStyle = $window.FindResource('DarkComboBoxItemStyle')
+    $cmb.HorizontalAlignment = 'Left'
+    return $cmb
 }
 
 function Set-ActiveMarketTab {
@@ -1032,12 +1465,7 @@ function Render-FxPanel {
     [System.Windows.Controls.Grid]::SetColumn($lblBase, 0)
     $selectorGrid.Children.Add($lblBase) | Out-Null
 
-    $cmbFxBase = New-Object System.Windows.Controls.ComboBox
-    $cmbFxBase.Background = $Converter.ConvertFromString('#16213E')
-    $cmbFxBase.Foreground = $Converter.ConvertFromString('#E0E0E0')
-    $cmbFxBase.BorderBrush = $Converter.ConvertFromString('#0F3460')
-    $cmbFxBase.FontSize = 11; $cmbFxBase.Padding = [System.Windows.Thickness]::new(4, 2, 4, 2)
-    $cmbFxBase.HorizontalAlignment = 'Left'; $cmbFxBase.MinWidth = 80
+    $cmbFxBase = New-ThemedComboBox
     $fxCurrencies = @('USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'CNY', 'HKD', 'SGD', 'INR', 'BRL', 'ZAR', 'MXN')
     foreach ($cur in $fxCurrencies) { $cmbFxBase.Items.Add($cur) | Out-Null }
     $cmbFxBase.SelectedItem = $script:fxBaseCurrency
@@ -1096,12 +1524,7 @@ function Render-CryptoPanel {
     [System.Windows.Controls.Grid]::SetColumn($lblCur, 0)
     $selectorGrid.Children.Add($lblCur) | Out-Null
 
-    $cmbCryptoCur = New-Object System.Windows.Controls.ComboBox
-    $cmbCryptoCur.Background = $Converter.ConvertFromString('#16213E')
-    $cmbCryptoCur.Foreground = $Converter.ConvertFromString('#E0E0E0')
-    $cmbCryptoCur.BorderBrush = $Converter.ConvertFromString('#0F3460')
-    $cmbCryptoCur.FontSize = 11; $cmbCryptoCur.Padding = [System.Windows.Thickness]::new(4, 2, 4, 2)
-    $cmbCryptoCur.HorizontalAlignment = 'Left'; $cmbCryptoCur.MinWidth = 80
+    $cmbCryptoCur = New-ThemedComboBox
     $cryptoCurrencies = @(
         @{ Display = 'USD ($)'; Value = 'usd' },
         @{ Display = 'EUR (€)'; Value = 'eur' },
@@ -1277,7 +1700,49 @@ function Render-CommoditiesPanel {
         return
     }
 
-    $commodities = Get-CommodityPrices -ApiKey $apiKey
+    # Currency selector row
+    $selectorGrid = New-Object System.Windows.Controls.Grid
+    $sc1 = New-Object System.Windows.Controls.ColumnDefinition; $sc1.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+    $sc2 = New-Object System.Windows.Controls.ColumnDefinition; $sc2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
+    $selectorGrid.ColumnDefinitions.Add($sc1); $selectorGrid.ColumnDefinitions.Add($sc2)
+    $selectorGrid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 8)
+
+    $lblCur = New-Object System.Windows.Controls.TextBlock
+    $lblCur.Text = 'Display Currency: '; $lblCur.FontSize = 11; $lblCur.Foreground = $Converter.ConvertFromString('#AAAAAA')
+    $lblCur.VerticalAlignment = 'Center'
+    [System.Windows.Controls.Grid]::SetColumn($lblCur, 0)
+    $selectorGrid.Children.Add($lblCur) | Out-Null
+
+    $cmbCommodityCur = New-ThemedComboBox
+    $commodityCurrencies = @(
+        @{ Display = 'USD ($)'; Value = 'USD'; Symbol = '$' },
+        @{ Display = 'EUR (€)'; Value = 'EUR'; Symbol = [string][char]0x20AC },
+        @{ Display = 'GBP (£)'; Value = 'GBP'; Symbol = [string][char]0x00A3 },
+        @{ Display = 'JPY (¥)'; Value = 'JPY'; Symbol = [string][char]0x00A5 },
+        @{ Display = 'CHF'; Value = 'CHF'; Symbol = 'CHF ' },
+        @{ Display = 'CAD (C$)'; Value = 'CAD'; Symbol = 'C$' },
+        @{ Display = 'AUD (A$)'; Value = 'AUD'; Symbol = 'A$' },
+        @{ Display = 'CNY (¥)'; Value = 'CNY'; Symbol = [string][char]0x00A5 }
+    )
+    $selectedIdx = 0
+    for ($i = 0; $i -lt $commodityCurrencies.Count; $i++) {
+        $cmbCommodityCur.Items.Add($commodityCurrencies[$i].Display) | Out-Null
+        if ($commodityCurrencies[$i].Value -eq $script:commodityBaseCurrency) { $selectedIdx = $i }
+    }
+    $cmbCommodityCur.SelectedIndex = $selectedIdx
+    $cmbCommodityCur.Tag = $commodityCurrencies
+    $cmbCommodityCur.Add_SelectionChanged({
+            param($sender, $e)
+            $currencies = $sender.Tag
+            $script:commodityBaseCurrency = $currencies[$sender.SelectedIndex].Value
+            $script:commoditiesCache.Data = $null  # Invalidate cache
+            Update-MarketDataContent
+        })
+    [System.Windows.Controls.Grid]::SetColumn($cmbCommodityCur, 1)
+    $selectorGrid.Children.Add($cmbCommodityCur) | Out-Null
+    $marketDataContent.Children.Add($selectorGrid) | Out-Null
+
+    $commodities = Get-CommodityPrices -ApiKey $apiKey -BaseCurrency $script:commodityBaseCurrency
     if (-not $commodities -or $commodities.Count -eq 0) {
         $lbl = New-Object System.Windows.Controls.TextBlock
         $lbl.Text = 'Commodity data unavailable — check API key or try again shortly (rate limit: 8 req/min)'
@@ -1286,6 +1751,10 @@ function Render-CommoditiesPanel {
         $marketDataContent.Children.Add($lbl) | Out-Null
         return
     }
+
+    # Resolve currency symbol for display
+    $curSymbol = ($commodityCurrencies | Where-Object { $_.Value -eq $script:commodityBaseCurrency } | Select-Object -First 1).Symbol
+    if (-not $curSymbol) { $curSymbol = '$' }
 
     foreach ($cmd in $commodities) {
         $changeColor = if ($cmd.Change -ge 0) { '#00CC66' } else { '#FF4444' }
@@ -1305,7 +1774,7 @@ function Render-CommoditiesPanel {
         $grid.Children.Add($lblName) | Out-Null
 
         $lblPrice = New-Object System.Windows.Controls.TextBlock
-        $lblPrice.Text = "`$$($cmd.Price.ToString('N2'))"; $lblPrice.FontSize = 11
+        $lblPrice.Text = "$curSymbol$($cmd.Price.ToString('N2'))"; $lblPrice.FontSize = 11
         $lblPrice.Foreground = $Converter.ConvertFromString('#E0E0E0')
         $lblPrice.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas'); $lblPrice.HorizontalAlignment = 'Right'
         $lblPrice.VerticalAlignment = 'Center'
@@ -1325,7 +1794,7 @@ function Render-CommoditiesPanel {
 
     Add-MarketSeparator -Converter $Converter
     $note = New-Object System.Windows.Controls.TextBlock
-    $note.Text = 'Prices shown are ETF prices that track the underlying commodities.'
+    $note.Text = "Prices shown as ETF proxies converted to $($script:commodityBaseCurrency) via Frankfurter API."
     $note.FontSize = 9; $note.Foreground = $Converter.ConvertFromString('#666666')
     $note.TextWrapping = 'Wrap'; $note.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
     $marketDataContent.Children.Add($note) | Out-Null
@@ -1339,8 +1808,9 @@ function Render-CommoditiesPanel {
 
 function Render-StocksPanel {
     param($Converter)
-    $apiKey = $txtAlphaVantageKey.Text.Trim()
-    if ([string]::IsNullOrWhiteSpace($apiKey)) {
+    $avKey = $txtAlphaVantageKey.Text.Trim()
+    $tdKey = $txtTwelveDataKey.Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($avKey)) {
         $lbl = New-Object System.Windows.Controls.TextBlock
         $lbl.Text = 'Enter an Alpha Vantage API key in Settings to look up stock quotes.'
         $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
@@ -1370,9 +1840,102 @@ function Render-StocksPanel {
 
     $marketDataContent.Children.Add($searchPanel) | Out-Null
 
-    # Result area
+    # ── Quick-Pick Region Selector ──
+    $quickPickHeader = New-Object System.Windows.Controls.TextBlock
+    $quickPickHeader.Text = 'Quick Pick — Major Stocks'
+    $quickPickHeader.Foreground = $Converter.ConvertFromString('#AAAAAA'); $quickPickHeader.FontSize = 10
+    $quickPickHeader.Margin = [System.Windows.Thickness]::new(0, 2, 0, 4)
+    $marketDataContent.Children.Add($quickPickHeader) | Out-Null
+
+    $regionRow = New-Object System.Windows.Controls.StackPanel
+    $regionRow.Orientation = 'Horizontal'; $regionRow.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
+
+    $stockButtonsPanel = New-Object System.Windows.Controls.WrapPanel
+    $stockButtonsPanel.Margin = [System.Windows.Thickness]::new(0, 0, 0, 8)
+
+    # Result area (created early so event handlers can reference it)
     $resultPanel = New-Object System.Windows.Controls.StackPanel
     $resultPanel.Name = 'stockResultPanel'
+
+    # Helper: populate stock buttons for a region
+    $populateStockButtons = {
+        param([string]$Region)
+        $stockButtonsPanel.Children.Clear()
+        $stocks = $script:majorStocks[$Region]
+        foreach ($s in $stocks) {
+            $sym = $s.Symbol
+            $nam = $s.Name
+            $btn = New-Object System.Windows.Controls.Button
+            $btn.Content = $sym; $btn.ToolTip = $nam
+            $btn.Background = $Converter.ConvertFromString('#16213E')
+            $btn.Foreground = $Converter.ConvertFromString('#E0E0E0')
+            $btn.BorderBrush = $Converter.ConvertFromString('#0F3460')
+            $btn.Padding = [System.Windows.Thickness]::new(6, 2, 6, 2)
+            $btn.Margin = [System.Windows.Thickness]::new(0, 0, 4, 4)
+            $btn.FontSize = 10; $btn.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+            $btn.Cursor = [System.Windows.Input.Cursors]::Hand
+            $btn.Tag = $sym
+            $btn.Add_Click({
+                    $ticker = $this.Tag
+                    $txtTicker.Text = $ticker
+                    $resultPanel.Children.Clear()
+
+                    $loading = New-Object System.Windows.Controls.TextBlock
+                    $loading.Text = "Looking up $ticker..."
+                    $loading.Foreground = $Converter.ConvertFromString('#888888'); $loading.FontSize = 11
+                    $resultPanel.Children.Add($loading) | Out-Null
+
+                    $window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action] {
+                            $quote = Get-StockQuote -ApiKey $avKey -Ticker $ticker
+                            $profile = if (-not [string]::IsNullOrWhiteSpace($tdKey)) { Get-StockProfile -ApiKey $tdKey -Ticker $ticker } else { $null }
+                            $stats = if (-not [string]::IsNullOrWhiteSpace($tdKey)) { Get-StockStatistics -ApiKey $tdKey -Ticker $ticker } else { $null }
+                            $resultPanel.Children.Clear()
+                            if ($quote) {
+                                Render-SingleStockQuote -Quote $quote -Profile $profile -Statistics $stats -Panel $resultPanel -Converter $Converter
+                            }
+                            else {
+                                $err = New-Object System.Windows.Controls.TextBlock
+                                $err.Text = "No data for '$ticker' - check symbol or API limit (25/day)"
+                                $err.Foreground = $Converter.ConvertFromString('#FF4444'); $err.FontSize = 11; $err.TextWrapping = 'Wrap'
+                                $resultPanel.Children.Add($err) | Out-Null
+                            }
+                        })
+                })
+            $stockButtonsPanel.Children.Add($btn) | Out-Null
+        }
+    }
+
+    # Region tab buttons
+    foreach ($region in $script:majorStocks.Keys) {
+        $thisRegion = $region  # local copy for closure capture
+        $rbtn = New-Object System.Windows.Controls.Button
+        $rbtn.Content = " $thisRegion "; $rbtn.Tag = $thisRegion
+        $isActive = ($thisRegion -eq $script:selectedStockRegion)
+        $rbtn.Background = $Converter.ConvertFromString($(if ($isActive) { '#0F3460' } else { '#16213E' }))
+        $rbtn.Foreground = $Converter.ConvertFromString($(if ($isActive) { '#00CC66' } else { '#AAAAAA' }))
+        $rbtn.BorderBrush = $Converter.ConvertFromString($(if ($isActive) { '#00CC66' } else { '#0F3460' }))
+        $rbtn.Padding = [System.Windows.Thickness]::new(6, 2, 6, 2)
+        $rbtn.Margin = [System.Windows.Thickness]::new(0, 0, 4, 0)
+        $rbtn.FontSize = 10; $rbtn.Cursor = [System.Windows.Input.Cursors]::Hand
+        $rbtn.Add_Click({
+                $selectedRegion = $this.Tag
+                $script:selectedStockRegion = $selectedRegion
+                foreach ($child in $regionRow.Children) {
+                    $isActive = ($child.Tag -eq $selectedRegion)
+                    $child.Background = $Converter.ConvertFromString($(if ($isActive) { '#0F3460' } else { '#16213E' }))
+                    $child.Foreground = $Converter.ConvertFromString($(if ($isActive) { '#00CC66' } else { '#AAAAAA' }))
+                    $child.BorderBrush = $Converter.ConvertFromString($(if ($isActive) { '#00CC66' } else { '#0F3460' }))
+                }
+                & $populateStockButtons $selectedRegion
+            })
+        $regionRow.Children.Add($rbtn) | Out-Null
+    }
+
+    $marketDataContent.Children.Add($regionRow) | Out-Null
+    & $populateStockButtons $script:selectedStockRegion
+    $marketDataContent.Children.Add($stockButtonsPanel) | Out-Null
+
+    # Add result panel to layout
     $marketDataContent.Children.Add($resultPanel) | Out-Null
 
     # Show cached quotes
@@ -1394,47 +1957,103 @@ function Render-StocksPanel {
             $resultPanel.Children.Add($loading) | Out-Null
 
             $window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action] {
-                    $quote = Get-StockQuote -ApiKey $apiKey -Ticker $ticker
+                    $quote = Get-StockQuote -ApiKey $avKey -Ticker $ticker
+                    $profile = if (-not [string]::IsNullOrWhiteSpace($tdKey)) { Get-StockProfile -ApiKey $tdKey -Ticker $ticker } else { $null }
+                    $stats = if (-not [string]::IsNullOrWhiteSpace($tdKey)) { Get-StockStatistics -ApiKey $tdKey -Ticker $ticker } else { $null }
                     $resultPanel.Children.Clear()
                     if ($quote) {
-                        Render-SingleStockQuote -Quote $quote -Panel $resultPanel -Converter $Converter
+                        Render-SingleStockQuote -Quote $quote -Profile $profile -Statistics $stats -Panel $resultPanel -Converter $Converter
                     }
                     else {
                         $err = New-Object System.Windows.Controls.TextBlock
-                        $err.Text = "No data for '$ticker' — check symbol or API limit (25/day)"
+                        $err.Text = "No data for '$ticker' - check symbol or API limit (25/day)"
                         $err.Foreground = $Converter.ConvertFromString('#FF4444'); $err.FontSize = 11; $err.TextWrapping = 'Wrap'
                         $resultPanel.Children.Add($err) | Out-Null
                     }
-                }.GetNewClosure())
-        }.GetNewClosure())
+                })
+        })
+
+    # Enter key in ticker textbox triggers search
+    $txtTicker.Add_KeyDown({
+            if ($_.Key -eq [System.Windows.Input.Key]::Return) {
+                $btnSearch.RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent))
+            }
+        })
 }
 
 function Render-SingleStockQuote {
-    param($Quote, $Panel, $Converter)
+    param($Quote, $Profile, $Statistics, $Panel, $Converter)
     $changeColor = if ([double]$Quote.Change -ge 0) { '#00CC66' } else { '#FF4444' }
     $arrow = if ([double]$Quote.Change -ge 0) { [char]0x25B2 } else { [char]0x25BC }
 
     $border = New-Object System.Windows.Controls.Border
     $border.Background = $Converter.ConvertFromString('#16213E')
     $border.CornerRadius = [System.Windows.CornerRadius]::new(4)
-    $border.Padding = [System.Windows.Thickness]::new(8, 6, 8, 6)
+    $border.Padding = [System.Windows.Thickness]::new(10, 8, 10, 8)
     $border.Margin = [System.Windows.Thickness]::new(0, 0, 0, 6)
 
     $stack = New-Object System.Windows.Controls.StackPanel
 
+    # ── Header: Company name + symbol + price + change ──
+    $headerText = "$($Quote.Symbol)  `$$($Quote.Price)  $arrow $($Quote.Change) ($($Quote.ChangePct)%)"
+    if ($Profile -and $Profile.Name) {
+        $headerText = "$($Profile.Name) ($($Quote.Symbol))  `$$($Quote.Price)  $arrow $($Quote.Change) ($($Quote.ChangePct)%)"
+    }
     $header = New-Object System.Windows.Controls.TextBlock
-    $header.Text = "$($Quote.Symbol)  `$$($Quote.Price)  $arrow $($Quote.Change) ($($Quote.ChangePct)%)"
+    $header.Text = $headerText
     $header.FontSize = 12; $header.FontWeight = [System.Windows.FontWeights]::Bold
     $header.Foreground = $Converter.ConvertFromString($changeColor)
     $header.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+    $header.TextWrapping = 'Wrap'
     $stack.Children.Add($header) | Out-Null
 
+    # ── Profile line: sector, industry, exchange ──
+    if ($Profile) {
+        $profileParts = @()
+        if ($Profile.Sector) { $profileParts += $Profile.Sector }
+        if ($Profile.Industry) { $profileParts += $Profile.Industry }
+        if ($Profile.Exchange) { $profileParts += $Profile.Exchange }
+        if ($profileParts.Count -gt 0) {
+            $profLine = New-Object System.Windows.Controls.TextBlock
+            $profLine.Text = ($profileParts -join '  |  ')
+            $profLine.FontSize = 10; $profLine.Foreground = $Converter.ConvertFromString('#7799BB')
+            $profLine.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+            $profLine.Margin = [System.Windows.Thickness]::new(0, 2, 0, 0)
+            $profLine.TextWrapping = 'Wrap'
+            $stack.Children.Add($profLine) | Out-Null
+        }
+    }
+
+    # ── OHLCV line ──
     $details = New-Object System.Windows.Controls.TextBlock
     $details.Text = "O: $($Quote.Open)  H: $($Quote.High)  L: $($Quote.Low)  Vol: $($Quote.Volume)"
     $details.FontSize = 10; $details.Foreground = $Converter.ConvertFromString('#888888')
     $details.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
-    $details.Margin = [System.Windows.Thickness]::new(0, 2, 0, 0)
+    $details.Margin = [System.Windows.Thickness]::new(0, 3, 0, 0)
     $stack.Children.Add($details) | Out-Null
+
+    # ── Statistics line: Market Cap, P/E, 52-week range, Beta, Dividend ──
+    if ($Statistics) {
+        $statParts = @()
+        if ($null -ne $Statistics.MarketCap) { $statParts += "MCap: $(Format-LargeNumber $Statistics.MarketCap)" }
+        if ($null -ne $Statistics.TrailingPE) { $statParts += "P/E: $($Statistics.TrailingPE)" }
+        if ($null -ne $Statistics.Week52High -and $null -ne $Statistics.Week52Low) {
+            $statParts += "52w: $($Statistics.Week52Low)-$($Statistics.Week52High)"
+        }
+        if ($null -ne $Statistics.Beta) { $statParts += [string][char]0x03B2 + ": $($Statistics.Beta)" }
+        if ($null -ne $Statistics.DividendYield) { $statParts += "Div: $($Statistics.DividendYield)%" }
+        if ($null -ne $Statistics.ProfitMargin) { $statParts += "Margin: $($Statistics.ProfitMargin)%" }
+
+        if ($statParts.Count -gt 0) {
+            $statLine = New-Object System.Windows.Controls.TextBlock
+            $statLine.Text = ($statParts -join '  |  ')
+            $statLine.FontSize = 10; $statLine.Foreground = $Converter.ConvertFromString('#AAAAAA')
+            $statLine.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+            $statLine.Margin = [System.Windows.Thickness]::new(0, 2, 0, 0)
+            $statLine.TextWrapping = 'Wrap'
+            $stack.Children.Add($statLine) | Out-Null
+        }
+    }
 
     $border.Child = $stack
     $Panel.Children.Add($border) | Out-Null
@@ -2254,9 +2873,18 @@ $btnTabStocks.Add_Click({ Set-ActiveMarketTab -TabName 'Stocks' })
 
 # API key save button
 $btnSaveApiKeys.Add_Click({
+        # Store API keys in the secure backend instead of JSON
+        $tdKeyVal = $txtTwelveDataKey.Text.Trim()
+        $avKeyVal = $txtAlphaVantageKey.Text.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($tdKeyVal)) {
+            Set-SecureApiKey -ServiceName 'TwelveData' -ApiKey $tdKeyVal
+        }
+        if (-not [string]::IsNullOrWhiteSpace($avKeyVal)) {
+            Set-SecureApiKey -ServiceName 'AlphaVantage' -ApiKey $avKeyVal
+        }
         Save-UserPreferences
         Update-ApiKeyTabVisibility
-        $txtStatus.Text = 'API keys saved'
+        $txtStatus.Text = "API keys saved to $($script:secretsBackend)"
         # Refresh market data content if on an API-dependent tab
         if ($script:activeMarketTab -in @('Indices', 'Commodities', 'Stocks')) {
             Update-MarketDataContent
@@ -2412,12 +3040,36 @@ $window.Add_Loaded({
                 $chkAlwaysOnTop.IsChecked = $true
                 $window.Topmost = $true
             }
-            # Load API keys
-            if ($script:userPrefs.TwelveDataApiKey) {
+            # Load API keys from secure storage
+            $script:secretsBackend = if ($script:userPrefs.SecretsBackend) { $script:userPrefs.SecretsBackend } else { 'CredentialManager' }
+            # Sync ComboBox to loaded backend
+            for ($i = 0; $i -lt $cmbSecretsBackend.Items.Count; $i++) {
+                if ($cmbSecretsBackend.Items[$i].Tag -eq $script:secretsBackend) {
+                    $cmbSecretsBackend.SelectedIndex = $i; break
+                }
+            }
+            $tdKey = Get-SecureApiKey -ServiceName 'TwelveData' -Backend $script:secretsBackend
+            $avKey = Get-SecureApiKey -ServiceName 'AlphaVantage' -Backend $script:secretsBackend
+            if ($tdKey) { $txtTwelveDataKey.Text = $tdKey }
+            if ($avKey) { $txtAlphaVantageKey.Text = $avKey }
+
+            # Auto-migrate plaintext keys from old JSON format
+            if ($script:userPrefs.TwelveDataApiKey -and -not $tdKey) {
+                Set-SecureApiKey -ServiceName 'TwelveData' -ApiKey $script:userPrefs.TwelveDataApiKey -Backend $script:secretsBackend
                 $txtTwelveDataKey.Text = $script:userPrefs.TwelveDataApiKey
             }
-            if ($script:userPrefs.AlphaVantageApiKey) {
+            if ($script:userPrefs.AlphaVantageApiKey -and -not $avKey) {
+                Set-SecureApiKey -ServiceName 'AlphaVantage' -ApiKey $script:userPrefs.AlphaVantageApiKey -Backend $script:secretsBackend
                 $txtAlphaVantageKey.Text = $script:userPrefs.AlphaVantageApiKey
+            }
+            # Remove migrated keys from JSON
+            if ($script:userPrefs.TwelveDataApiKey -or $script:userPrefs.AlphaVantageApiKey) {
+                Save-UserPreferences
+            }
+
+            # Load commodity base currency preference
+            if ($script:userPrefs.CommodityBaseCurrency) {
+                $script:commodityBaseCurrency = $script:userPrefs.CommodityBaseCurrency
             }
         }
 

@@ -1,0 +1,15 @@
+{
+    "ActiveExchanges": [
+        "XNYS",
+        "XNAS",
+        "XLON"
+    ],
+    "AlwaysOnTop": false,
+    "NotifyThresholds": [
+        30,
+        15,
+        5
+    ],
+    "CommodityBaseCurrency": "USD",
+    "SecretsBackend": "CredentialManager"
+}

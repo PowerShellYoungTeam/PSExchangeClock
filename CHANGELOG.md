@@ -21,8 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Globe view** — orthographic projection with left-drag rotation, graticule lines, and continent outlines
 - **Timezone bands overlay** — alternating colour strips with UTC offset labels
 - **Trading sessions overlay** — Asia, Europe, and Americas session bands
+- **Political borders overlay** — country boundaries from Natural Earth
+- **Timezone boundaries overlay** — timezone region outlines
+- **Earthquakes overlay** — live USGS earthquake feed with magnitude-scaled markers
+- **Volcanoes overlay** — Smithsonian GVP weekly volcano alerts with alert-level colour coding
+- **Conflict zones overlay** — UCDP/PRIO armed conflict data with intensity-scaled markers
+- **Submarine cables overlay** — global undersea cable network from TeleGeography
+- **Power plants overlay** — major power stations colour-coded by fuel type (nuclear, coal, gas, hydro, wind, solar, geothermal, oil)
+- **Overlay legend** — auto-displayed when conflict zones, power plants, or volcanoes are active; shows symbology for marker sizes, fuel types, and alert levels
 - Map toolbar with controls for style, projection, overlays, and zoom
 - 5-minute overlay refresh timer for terminator and time line
+
+### Removed
+
+- Exclusive Economic Zones (EEZ) overlay — removed due to poor visual quality at map scale
 
 ### Changed
 

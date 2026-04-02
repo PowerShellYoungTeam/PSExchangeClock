@@ -12,7 +12,12 @@ A real-time WPF dashboard for monitoring global stock exchange closing times, li
 ## Features
 
 - **Live countdown timers** with color-coded status (green → yellow → red) for 20 major stock exchanges worldwide
-- **Interactive world map** with clickable exchange markers — NASA Earth at Night satellite imagery or vector continent outlines
+- **Interactive world map** with clickable exchange markers — NASA Earth at Night satellite imagery or vector continent outlines, flat and globe projections, zoom & pan
+- **Map overlays** toggled from the toolbar:
+  - *Geo* — day/night terminator, timezone bands, political borders, timezone boundaries
+  - *Live data* — earthquakes (USGS), volcanoes (Smithsonian GVP), conflict zones (UCDP/PRIO)
+  - *Infrastructure* — submarine cables, power plants colour-coded by fuel type
+  - Auto-displayed legend for conflict zones, power plants, and volcanoes
 - **World clocks** showing current times across six base time zones plus dynamic zones for active exchanges
 - **Market data sidebar** with tabbed content:
   - Breaking financial news (Reuters, BBC, CNBC RSS feeds)
@@ -137,6 +142,11 @@ Edit the `holidays.json` file in the module's `Data` directory to add market hol
 | Indices & Commodities | [Twelve Data API](https://twelvedata.com/) | 800 req/day |
 | Stock quotes | [Alpha Vantage API](https://www.alphavantage.co/) | 25 req/day |
 | World map image | [NASA GSFC Earth at Night](https://earthobservatory.nasa.gov/) | One-time download |
+| Earthquakes | [USGS Earthquake Hazards](https://earthquake.usgs.gov/) | Unlimited |
+| Volcanoes | [Smithsonian GVP](https://volcano.si.edu/) | Unlimited |
+| Conflict zones | [UCDP/PRIO](https://ucdp.uu.se/) | Bundled data |
+| Power plants | [WRI Global Power Plant Database](https://datasets.wri.org/datasets/global-power-plant-database) | Bundled data |
+| Submarine cables | [TeleGeography](https://www.submarinecablemap.com/) | Bundled data |
 
 ## Refreshing Exchange Data
 

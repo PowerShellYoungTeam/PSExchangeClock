@@ -605,7 +605,6 @@ public static class CredManager {
                                         <CheckBox x:Name="chkTimeZoneBands" Content="TZ Bands" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
                                         <CheckBox x:Name="chkPoliticalBounds" Content="Borders" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
                                         <CheckBox x:Name="chkTZBoundaries" Content="TZ Boundaries" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
-                                        <CheckBox x:Name="chkEEZ" Content="Exclusive Economic Zones" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
                                         <TextBlock Text="── Live Data ──" Foreground="#55AA88" FontSize="9" FontWeight="Bold" Margin="0,6,0,3"/>
                                         <CheckBox x:Name="chkEarthquakes" Content="Earthquakes" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
                                         <CheckBox x:Name="chkVolcanoes" Content="Volcanoes" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
@@ -877,7 +876,6 @@ public static class CredManager {
     $chkVolcanoes = $window.FindName('chkVolcanoes')
     $chkSubmarineCables = $window.FindName('chkSubmarineCables')
     $chkPowerPlants = $window.FindName('chkPowerPlants')
-    $chkEEZ = $window.FindName('chkEEZ')
     $chkTZBoundaries = $window.FindName('chkTZBoundaries')
     $chkConflictZones = $window.FindName('chkConflictZones')
     $btnOverlays = $window.FindName('btnOverlays')
@@ -963,7 +961,6 @@ public static class CredManager {
     $script:liveFeedLastFetch = [DateTime]::MinValue
     $script:submarineCableData = $null
     $script:powerPlantData = $null
-    $script:eezData = $null
     $script:tzBoundaryData = $null
     $script:conflictZoneData = $null
 
@@ -3090,7 +3087,7 @@ public static class CredManager {
             $hue = 180  # default cyan
             if ($zone.UtcOffset -match '^([+-])(\d{2}):(\d{2})$') {
                 $hrs = [int]$Matches[2] + [int]$Matches[3] / 60
-                if ($Matches[1] -eq '-') { $hrs = -$hrs }
+                if ($Matches[1] -eq '-') { $hrs = - $hrs }
                 $hue = (($hrs + 12) / 26) * 360  # -12..+14 → 0..360
             }
             # HSL→RGB (saturation 0.7, lightness 0.55)
@@ -3172,83 +3169,6 @@ public static class CredManager {
         }
     }
 
-    function Draw-EEZBoundaries {
-        param([double]$Width, [double]$Height)
-        $converter = [System.Windows.Media.BrushConverter]::new()
-
-        # Load EEZ boundary data on first use
-        if (-not $script:eezData) {
-            $dataPath = Join-Path $PSScriptRoot '..\Data\overlays\eez-boundaries.json'
-            if (-not (Test-Path $dataPath)) { return }
-            $script:eezData = Get-Content $dataPath -Raw | ConvertFrom-Json
-        }
-        if (-not $script:eezData.boundaries) { return }
-
-        $strokeBrush = $converter.ConvertFromString('#4488CCFF')  # light blue, low opacity
-        $da = New-Object System.Windows.Media.DoubleCollection; $da.Add(6.0); $da.Add(3.0)
-
-        foreach ($boundary in $script:eezData.boundaries) {
-            $tip = $boundary.Name
-            if ($boundary.Type) { $tip += "  ($($boundary.Type))" }
-
-            foreach ($segment in $boundary.Segments) {
-                if ($segment.Count -lt 2) { continue }
-
-                if ($script:mapProjection -eq 'Globe') {
-                    $polyLine = New-Object System.Windows.Shapes.Polyline
-                    $polyLine.Stroke = $strokeBrush
-                    $polyLine.StrokeThickness = 0.8
-                    $polyLine.StrokeDashArray = $da
-                    $polyLine.IsHitTestVisible = $false
-                    $polyLine.ToolTip = $tip
-                    $pts = New-Object System.Windows.Media.PointCollection
-                    $prevVisible = $false
-                    foreach ($c in $segment) {
-                        $lat = [double]$c[0]; $lon = [double]$c[1]
-                        $p = Convert-LatLonToGlobe -Lat $lat -Lon $lon -Width $Width -Height $Height
-                        if ($p.Visible) {
-                            $pts.Add([System.Windows.Point]::new($p.X, $p.Y))
-                            $prevVisible = $true
-                        }
-                        elseif ($prevVisible -and $pts.Count -ge 2) {
-                            $polyLine.Points = $pts
-                            $canvasMap.Children.Add($polyLine) | Out-Null
-                            $polyLine = New-Object System.Windows.Shapes.Polyline
-                            $polyLine.Stroke = $strokeBrush
-                            $polyLine.StrokeThickness = 0.8
-                            $polyLine.StrokeDashArray = $da
-                            $polyLine.IsHitTestVisible = $false
-                            $polyLine.ToolTip = $tip
-                            $pts = New-Object System.Windows.Media.PointCollection
-                            $prevVisible = $false
-                        }
-                    }
-                    if ($pts.Count -ge 2) {
-                        $polyLine.Points = $pts
-                        $canvasMap.Children.Add($polyLine) | Out-Null
-                    }
-                }
-                else {
-                    $polyLine = New-Object System.Windows.Shapes.Polyline
-                    $polyLine.Stroke = $strokeBrush
-                    $polyLine.StrokeThickness = 0.8
-                    $polyLine.StrokeDashArray = $da
-                    $polyLine.IsHitTestVisible = $false
-                    $polyLine.ToolTip = $tip
-                    $pts = New-Object System.Windows.Media.PointCollection
-                    foreach ($c in $segment) {
-                        $lat = [double]$c[0]; $lon = [double]$c[1]
-                        $x = (($lon + 180) / 360) * $Width
-                        $y = ((90 - $lat) / 180) * $Height
-                        $pts.Add([System.Windows.Point]::new($x, $y))
-                    }
-                    $polyLine.Points = $pts
-                    $canvasMap.Children.Add($polyLine) | Out-Null
-                }
-            }
-        }
-    }
-
     function Draw-PowerPlants {
         param([double]$Width, [double]$Height)
         $converter = [System.Windows.Media.BrushConverter]::new()
@@ -3312,6 +3232,152 @@ public static class CredManager {
             [System.Windows.Controls.Canvas]::SetTop($dot, $pos.Y - $size / 2)
             $canvasMap.Children.Add($dot) | Out-Null
         }
+    }
+
+    function Draw-OverlayLegend {
+        param(
+            [double]$Width,
+            [double]$Height,
+            [bool]$ShowConflict,
+            [bool]$ShowPower,
+            [bool]$ShowVolcano
+        )
+        if (-not $ShowConflict -and -not $ShowPower -and -not $ShowVolcano) { return }
+
+        $converter = [System.Windows.Media.BrushConverter]::new()
+        $panel = New-Object System.Windows.Controls.StackPanel
+        $panel.Orientation = 'Vertical'
+
+        $border = New-Object System.Windows.Controls.Border
+        $border.Background = $converter.ConvertFromString('#CC1A1A2E')
+        $border.BorderBrush = $converter.ConvertFromString('#440F3460')
+        $border.BorderThickness = [System.Windows.Thickness]::new(1)
+        $border.CornerRadius = [System.Windows.CornerRadius]::new(4)
+        $border.Padding = [System.Windows.Thickness]::new(8, 6, 8, 6)
+        $border.Child = $panel
+        $border.IsHitTestVisible = $false
+
+        # ── Conflict Zones section ──
+        if ($ShowConflict) {
+            $hdr = New-Object System.Windows.Controls.TextBlock
+            $hdr.Text = 'Conflict Zones'
+            $hdr.Foreground = $converter.ConvertFromString('#FF5555')
+            $hdr.FontSize = 9; $hdr.FontWeight = 'Bold'
+            $hdr.Margin = [System.Windows.Thickness]::new(0, 0, 0, 2)
+            $panel.Children.Add($hdr) | Out-Null
+
+            $conflictItems = @(
+                @{ Size = 8.0; Alpha = 180; Label = '500+ events' },
+                @{ Size = 5.5; Alpha = 140; Label = '100-499' },
+                @{ Size = 3.5; Alpha = 100; Label = '20-99' },
+                @{ Size = 2.0; Alpha = 60; Label = '< 20' }
+            )
+            foreach ($item in $conflictItems) {
+                $row = New-Object System.Windows.Controls.StackPanel
+                $row.Orientation = 'Horizontal'
+                $row.Margin = [System.Windows.Thickness]::new(4, 1, 0, 1)
+                $swatch = New-Object System.Windows.Shapes.Ellipse
+                $swatch.Width = $item.Size; $swatch.Height = $item.Size
+                $swatch.Fill = New-Object System.Windows.Media.SolidColorBrush(
+                    [System.Windows.Media.Color]::FromArgb($item.Alpha, 255, 50, 50))
+                $swatch.Margin = [System.Windows.Thickness]::new(0, 0, 5, 0)
+                $swatch.VerticalAlignment = 'Center'
+                $lbl = New-Object System.Windows.Controls.TextBlock
+                $lbl.Text = $item.Label
+                $lbl.Foreground = $converter.ConvertFromString('#CCCCCC')
+                $lbl.FontSize = 8; $lbl.VerticalAlignment = 'Center'
+                $row.Children.Add($swatch) | Out-Null
+                $row.Children.Add($lbl) | Out-Null
+                $panel.Children.Add($row) | Out-Null
+            }
+        }
+
+        # ── Power Plants section ──
+        if ($ShowPower) {
+            $hdr = New-Object System.Windows.Controls.TextBlock
+            $hdr.Text = 'Power Plants'
+            $hdr.Foreground = $converter.ConvertFromString('#AA8855')
+            $hdr.FontSize = 9; $hdr.FontWeight = 'Bold'
+            $hdr.Margin = [System.Windows.Thickness]::new(0, $(if ($ShowConflict) { 5 } else { 0 }), 0, 2)
+            $panel.Children.Add($hdr) | Out-Null
+
+            $fuelItems = @(
+                @{ Color = '#FFD700'; Label = 'Nuclear' },
+                @{ Color = '#4A4A4A'; Label = 'Coal' },
+                @{ Color = '#FF8C00'; Label = 'Gas' },
+                @{ Color = '#8B4513'; Label = 'Oil' },
+                @{ Color = '#1E90FF'; Label = 'Hydro' },
+                @{ Color = '#32CD32'; Label = 'Wind' },
+                @{ Color = '#FFD93D'; Label = 'Solar' },
+                @{ Color = '#DC143C'; Label = 'Geothermal' }
+            )
+            foreach ($item in $fuelItems) {
+                $row = New-Object System.Windows.Controls.StackPanel
+                $row.Orientation = 'Horizontal'
+                $row.Margin = [System.Windows.Thickness]::new(4, 1, 0, 1)
+                $swatch = New-Object System.Windows.Shapes.Ellipse
+                $swatch.Width = 6; $swatch.Height = 6
+                $swatch.Fill = $converter.ConvertFromString($item.Color)
+                $swatch.Opacity = 0.7
+                $swatch.Margin = [System.Windows.Thickness]::new(0, 0, 5, 0)
+                $swatch.VerticalAlignment = 'Center'
+                $lbl = New-Object System.Windows.Controls.TextBlock
+                $lbl.Text = $item.Label
+                $lbl.Foreground = $converter.ConvertFromString('#CCCCCC')
+                $lbl.FontSize = 8; $lbl.VerticalAlignment = 'Center'
+                $row.Children.Add($swatch) | Out-Null
+                $row.Children.Add($lbl) | Out-Null
+                $panel.Children.Add($row) | Out-Null
+            }
+        }
+
+        # ── Volcanoes section ──
+        if ($ShowVolcano) {
+            $hdr = New-Object System.Windows.Controls.TextBlock
+            $hdr.Text = 'Volcanoes'
+            $hdr.Foreground = $converter.ConvertFromString('#FF8800')
+            $hdr.FontSize = 9; $hdr.FontWeight = 'Bold'
+            $hdr.Margin = [System.Windows.Thickness]::new(0, $(if ($ShowConflict -or $ShowPower) { 5 } else { 0 }), 0, 2)
+            $panel.Children.Add($hdr) | Out-Null
+
+            $volcanoItems = @(
+                @{ Color = '#FF2222'; Label = 'Warning' },
+                @{ Color = '#FF8800'; Label = 'Watch' },
+                @{ Color = '#FFCC00'; Label = 'Advisory' },
+                @{ Color = '#44AA44'; Label = 'Normal' }
+            )
+            foreach ($item in $volcanoItems) {
+                $row = New-Object System.Windows.Controls.StackPanel
+                $row.Orientation = 'Horizontal'
+                $row.Margin = [System.Windows.Thickness]::new(4, 1, 0, 1)
+                $tri = New-Object System.Windows.Shapes.Polygon
+                $tri.Fill = $converter.ConvertFromString($item.Color)
+                $tri.Stroke = $converter.ConvertFromString('#88FFFFFF')
+                $tri.StrokeThickness = 0.5
+                $pts = New-Object System.Windows.Media.PointCollection
+                $pts.Add([System.Windows.Point]::new(4, 0))
+                $pts.Add([System.Windows.Point]::new(0, 8))
+                $pts.Add([System.Windows.Point]::new(8, 8))
+                $tri.Points = $pts
+                $tri.Margin = [System.Windows.Thickness]::new(0, 0, 5, 0)
+                $tri.VerticalAlignment = 'Center'
+                $lbl = New-Object System.Windows.Controls.TextBlock
+                $lbl.Text = $item.Label
+                $lbl.Foreground = $converter.ConvertFromString('#CCCCCC')
+                $lbl.FontSize = 8; $lbl.VerticalAlignment = 'Center'
+                $row.Children.Add($tri) | Out-Null
+                $row.Children.Add($lbl) | Out-Null
+                $panel.Children.Add($row) | Out-Null
+            }
+        }
+
+        # Position at bottom-right of map canvas (avoids market data panel on the left)
+        $border.Measure([System.Windows.Size]::new([double]::PositiveInfinity, [double]::PositiveInfinity))
+        $legendWidth = $border.DesiredSize.Width
+        $legendHeight = $border.DesiredSize.Height
+        [System.Windows.Controls.Canvas]::SetLeft($border, $Width - $legendWidth - 10)
+        [System.Windows.Controls.Canvas]::SetTop($border, $Height - $legendHeight - 10)
+        $canvasMap.Children.Add($border) | Out-Null
     }
 
     function Draw-GlobeOutline {
@@ -3549,11 +3615,6 @@ public static class CredManager {
             Draw-TZBoundaries -Width $w -Height $h
         }
 
-        # EEZ boundaries
-        if ($chkEEZ -and $chkEEZ.IsChecked) {
-            Draw-EEZBoundaries -Width $w -Height $h
-        }
-
         # Power plants
         if ($chkPowerPlants -and $chkPowerPlants.IsChecked) {
             Draw-PowerPlants -Width $w -Height $h
@@ -3563,6 +3624,12 @@ public static class CredManager {
         if ($chkConflictZones -and $chkConflictZones.IsChecked) {
             Draw-ConflictZones -Width $w -Height $h
         }
+
+        # Overlay legend
+        Draw-OverlayLegend -Width $w -Height $h `
+            -ShowConflict ($chkConflictZones -and $chkConflictZones.IsChecked) `
+            -ShowPower ($chkPowerPlants -and $chkPowerPlants.IsChecked) `
+            -ShowVolcano ($chkVolcanoes -and $chkVolcanoes.IsChecked)
 
         # ── Place exchange markers with clustering ──
 
@@ -4387,8 +4454,6 @@ public static class CredManager {
     $chkSubmarineCables.Add_Unchecked({ Initialize-WorldMap })
     $chkPowerPlants.Add_Checked({ Initialize-WorldMap })
     $chkPowerPlants.Add_Unchecked({ Initialize-WorldMap })
-    $chkEEZ.Add_Checked({ Initialize-WorldMap })
-    $chkEEZ.Add_Unchecked({ Initialize-WorldMap })
     $chkTZBoundaries.Add_Checked({ Initialize-WorldMap })
     $chkTZBoundaries.Add_Unchecked({ Initialize-WorldMap })
     $chkConflictZones.Add_Checked({ Initialize-WorldMap })

@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Extends the data preparation pipeline for additional map overlays.
-    Supports: SubmarineCables, EEZ, TZBoundaries, PowerPlants, ConflictZones
+    Supports: SubmarineCables, TZBoundaries, PowerPlants, ConflictZones
 
     DATA SOURCES & ATTRIBUTION:
     ──────────────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('SubmarineCables', 'TZBoundaries', 'EEZ', 'PowerPlants', 'ConflictZones')]
+    [ValidateSet('SubmarineCables', 'TZBoundaries', 'PowerPlants', 'ConflictZones')]
     [string]$Source,
 
     [ValidateRange(0.05, 5.0)]
@@ -424,183 +424,6 @@ if ($Source -eq 'TZBoundaries') {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-#  EEZ BOUNDARIES — Maritime Boundaries from Marine Regions WFS
-# ══════════════════════════════════════════════════════════════════════
-if ($Source -eq 'EEZ') {
-    $rawFile = Join-Path $cacheDir 'eez-boundaries-raw.json'
-    $outputFile = Join-Path $outputDir 'eez-boundaries.json'
-
-    # Step 1: Download from WFS (all ~2349 boundary lines)
-    if (-not (Test-Path $rawFile)) {
-        $wfsUrl = 'https://geo.vliz.be/geoserver/MarineRegions/ows?service=WFS&version=1.1.0&request=GetFeature&typeName=MarineRegions:eez_boundaries&outputFormat=application/json'
-        Write-Host "[DOWNLOAD] Fetching EEZ boundaries from Marine Regions WFS (~2349 features)..." -ForegroundColor Yellow
-        Invoke-WebRequest -Uri $wfsUrl -OutFile $rawFile -UseBasicParsing -TimeoutSec 120
-        $sz = [Math]::Round((Get-Item $rawFile).Length / 1MB, 1)
-        Write-Host "[OK] Downloaded: $sz MB" -ForegroundColor Green
-    }
-    else {
-        Write-Host "[CACHE] Using cached eez-boundaries-raw.json" -ForegroundColor DarkGray
-    }
-
-    # Step 2+3: Parse and simplify via compiled C#
-    $eezTolerance = [Math]::Max($Tolerance, 0.3)
-    Write-Host "[PARSE+SIMPLIFY] C# fast path: parse, simplify (tolerance=$eezTolerance°)..." -ForegroundColor Yellow
-
-    # Add EEZ-specific C# parser
-    if (-not ([System.Management.Automation.PSTypeName]'EEZParser').Type) {
-        Add-Type -Language CSharp -TypeDefinition @'
-using System;
-using System.Collections.Generic;
-using System.Text.Json;
-using System.IO;
-
-public class EEZParser
-{
-    public class Boundary
-    {
-        public string Name;
-        public string Territory1;
-        public string Territory2;
-        public string LineType;
-        public double LengthKm;
-        public List<List<double[]>> Segments = new List<List<double[]>>();
-    }
-
-    public static List<Boundary> ParseEEZGeoJson(string filePath)
-    {
-        var boundaries = new List<Boundary>();
-        var text = File.ReadAllText(filePath);
-        using var doc = JsonDocument.Parse(text);
-        var features = doc.RootElement.GetProperty("features");
-        foreach (var feat in features.EnumerateArray())
-        {
-            var props = feat.GetProperty("properties");
-            string name = GetStr(props, "line_name");
-            string ter1 = GetStr(props, "territory1");
-            string ter2 = GetStr(props, "territory2");
-            string ltype = GetStr(props, "line_type");
-            double lenKm = 0;
-            if (props.TryGetProperty("length_km", out var lkm) && lkm.ValueKind == JsonValueKind.Number)
-                lenKm = lkm.GetDouble();
-
-            var geom = feat.GetProperty("geometry");
-            string gtype = geom.GetProperty("type").GetString();
-            var coords = geom.GetProperty("coordinates");
-            var b = new Boundary { Name = name, Territory1 = ter1, Territory2 = ter2, LineType = ltype, LengthKm = lenKm };
-
-            if (gtype == "LineString")
-            {
-                b.Segments.Add(ParseLine(coords));
-            }
-            else if (gtype == "MultiLineString")
-            {
-                foreach (var line in coords.EnumerateArray())
-                    b.Segments.Add(ParseLine(line));
-            }
-            boundaries.Add(b);
-        }
-        return boundaries;
-    }
-
-    static string GetStr(JsonElement el, string prop)
-    {
-        if (el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String)
-            return v.GetString();
-        return "";
-    }
-
-    static List<double[]> ParseLine(JsonElement line)
-    {
-        var pts = new List<double[]>();
-        foreach (var coord in line.EnumerateArray())
-        {
-            // WFS 1.1.0 EPSG:4326 axis order = lat, lon
-            double v0 = coord[0].GetDouble();
-            double v1 = coord[1].GetDouble();
-            double lat, lon;
-            if (Math.Abs(v0) > 90) { lon = v0; lat = v1; }
-            else if (Math.Abs(v1) > 180) { lat = v0; lon = v1; }
-            else { lat = v0; lon = v1; }
-            pts.Add(new double[] { lat, lon });
-        }
-        return pts;
-    }
-}
-'@
-    }
-
-    $parsedBoundaries = [EEZParser]::ParseEEZGeoJson($rawFile)
-    Write-Host "[OK] Parsed $($parsedBoundaries.Count) boundary lines" -ForegroundColor Green
-
-    $totalOriginal = 0
-    $totalSimplified = 0
-    $boundaries = [System.Collections.Generic.List[object]]::new()
-    $decimateStep = 5
-
-    foreach ($b in $parsedBoundaries) {
-        $simplifiedSegments = [System.Collections.Generic.List[object]]::new()
-        foreach ($seg in $b.Segments) {
-            $totalOriginal += $seg.Count
-            if ($seg.Count -gt 20) {
-                $simplified = [GeoSimplifier]::DecimateAndSimplify($seg, $decimateStep, $eezTolerance)
-            }
-            else {
-                $simplified = $seg
-            }
-            $totalSimplified += $simplified.Count
-            if ($simplified.Count -ge 2) {
-                $coords = foreach ($pt in $simplified) {
-                    , @([Math]::Round($pt[0], 2), [Math]::Round($pt[1], 2))
-                }
-                $simplifiedSegments.Add($coords)
-            }
-        }
-
-        if ($simplifiedSegments.Count -gt 0) {
-            $boundaries.Add(@{
-                    Name     = $b.Name
-                    Type     = $b.LineType
-                    Segments = $simplifiedSegments
-                })
-        }
-    }
-
-    Write-Host "[OK] Simplified: $totalOriginal -> $totalSimplified points ($([Math]::Round(($totalSimplified / [Math]::Max($totalOriginal,1)) * 100, 1))% retained)" -ForegroundColor Green
-
-    # Step 4: Write output
-    Write-Host "[WRITE] Writing $outputFile..." -ForegroundColor Yellow
-    $jsonOutput = @{
-        meta       = @{
-            source          = 'Marine Regions (Flanders Marine Institute)'
-            sourceUrl       = 'https://www.marineregions.org/'
-            license         = 'CC-BY 4.0'
-            dataset         = 'eez_boundaries v12 (2023)'
-            tolerance       = $eezTolerance
-            generatedDate   = (Get-Date -Format 'yyyy-MM-dd')
-            generatedBy     = 'Convert-OverlayData.ps1'
-            totalBoundaries = $boundaries.Count
-            totalPoints     = $totalSimplified
-        }
-        boundaries = $boundaries
-    }
-
-    $jsonOutput | ConvertTo-Json -Depth 10 -Compress | Set-Content $outputFile -Encoding UTF8
-    $fileSize = [Math]::Round((Get-Item $outputFile).Length / 1KB, 1)
-    Write-Host "[OK] Written: $outputFile ($fileSize KB)" -ForegroundColor Green
-
-    # Summary
-    Write-Host ""
-    Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
-    Write-Host "  EEZ BOUNDARIES SUMMARY" -ForegroundColor Cyan
-    Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
-    Write-Host "  Source:    Marine Regions v12 (CC-BY 4.0)" -ForegroundColor White
-    Write-Host "  Boundaries: $($boundaries.Count)" -ForegroundColor White
-    Write-Host "  Points:    $totalOriginal -> $totalSimplified (tolerance=$eezTolerance°)" -ForegroundColor White
-    Write-Host "  Output:    $outputFile ($fileSize KB)" -ForegroundColor White
-    Write-Host ""
-}
-
-# ══════════════════════════════════════════════════════════════════════
 #  POWER PLANTS — WRI Global Power Plant Database (CSV → filtered JSON)
 # ══════════════════════════════════════════════════════════════════════
 if ($Source -eq 'PowerPlants') {
@@ -633,21 +456,21 @@ if ($Source -eq 'PowerPlants') {
 
     # Fuel type color mapping
     $fuelColors = @{
-        'Coal'       = '#4A4A4A'  # dark gray
-        'Gas'        = '#FF8C00'  # orange
-        'Oil'        = '#8B4513'  # brown
-        'Nuclear'    = '#FFD700'  # gold
-        'Hydro'      = '#1E90FF'  # blue
-        'Wind'       = '#32CD32'  # green
-        'Solar'      = '#FFD93D'  # yellow
-        'Biomass'    = '#228B22'  # forest green
-        'Geothermal' = '#DC143C'  # crimson
-        'Waste'      = '#808080'  # gray
+        'Coal'           = '#4A4A4A'  # dark gray
+        'Gas'            = '#FF8C00'  # orange
+        'Oil'            = '#8B4513'  # brown
+        'Nuclear'        = '#FFD700'  # gold
+        'Hydro'          = '#1E90FF'  # blue
+        'Wind'           = '#32CD32'  # green
+        'Solar'          = '#FFD93D'  # yellow
+        'Biomass'        = '#228B22'  # forest green
+        'Geothermal'     = '#DC143C'  # crimson
+        'Waste'          = '#808080'  # gray
         'Wave and Tidal' = '#00CED1' # teal
-        'Petcoke'    = '#2F2F2F'
-        'Cogeneration' = '#B8860B'
-        'Storage'    = '#9370DB'
-        'Other'      = '#AAAAAA'
+        'Petcoke'        = '#2F2F2F'
+        'Cogeneration'   = '#B8860B'
+        'Storage'        = '#9370DB'
+        'Other'          = '#AAAAAA'
     }
 
     # Step 3: Build output
@@ -656,13 +479,13 @@ if ($Source -eq 'PowerPlants') {
         $fuel = $row.primary_fuel
         $color = if ($fuelColors.ContainsKey($fuel)) { $fuelColors[$fuel] } else { '#AAAAAA' }
         $plants.Add(@{
-                Name     = $row.name
-                Country  = $row.country_long
-                Fuel     = $fuel
-                MW       = [Math]::Round([double]$row.capacity_mw, 0)
-                Lat      = [Math]::Round([double]$row.latitude, 3)
-                Lon      = [Math]::Round([double]$row.longitude, 3)
-                Color    = $color
+                Name    = $row.name
+                Country = $row.country_long
+                Fuel    = $fuel
+                MW      = [Math]::Round([double]$row.capacity_mw, 0)
+                Lat     = [Math]::Round([double]$row.latitude, 3)
+                Lon     = [Math]::Round([double]$row.longitude, 3)
+                Color   = $color
             })
     }
 
@@ -758,13 +581,13 @@ if ($Source -eq 'ConflictZones') {
 
         if (-not $grid.ContainsKey($key)) {
             $grid[$key] = @{
-                Lat       = [Math]::Round($gridLat, 2)
-                Lon       = [Math]::Round($gridLon, 2)
-                Events    = 0
-                Deaths    = 0
-                Country   = $evt.country
-                LastYear  = 0
-                Types     = [System.Collections.Generic.HashSet[string]]::new()
+                Lat      = [Math]::Round($gridLat, 2)
+                Lon      = [Math]::Round($gridLon, 2)
+                Events   = 0
+                Deaths   = 0
+                Country  = $evt.country
+                LastYear = 0
+                Types    = [System.Collections.Generic.HashSet[string]]::new()
             }
         }
         $grid[$key].Events++

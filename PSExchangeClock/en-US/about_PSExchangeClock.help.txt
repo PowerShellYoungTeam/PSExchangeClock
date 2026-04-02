@@ -18,7 +18,16 @@ LONG DESCRIPTION
 
     * An interactive world map with clickable exchange markers and flyout
       detail panels (supports NASA Earth at Night satellite imagery or
-      vector continent outlines)
+      vector continent outlines, flat and globe projections, zoom & pan)
+
+    * Toggleable map overlays via the toolbar:
+        - Day/night terminator, timezone bands, political borders, and
+          timezone boundaries
+        - Live earthquakes (USGS), volcanoes (Smithsonian GVP), and
+          conflict zones (UCDP/PRIO)
+        - Submarine cables and power plants colour-coded by fuel type
+        - Auto-displayed legend for conflict zones, power plants, and
+          volcanoes
 
     * World clocks showing current times across six base time zones plus
       dynamic zones for active exchanges

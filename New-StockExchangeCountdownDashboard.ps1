@@ -1370,8 +1370,8 @@ function Update-MarketDataContent {
 function Add-MarketDataRow {
     param($Converter, [string]$Left, [string]$Right, [string]$RightColor = '#E0E0E0', [string]$LeftColor = '#AAAAAA', [double]$LeftFontSize = 11, [double]$RightFontSize = 12)
     $grid = New-Object System.Windows.Controls.Grid
-    $col1 = New-Object System.Windows.Controls.ColumnDefinition; $col1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
-    $col2 = New-Object System.Windows.Controls.ColumnDefinition; $col2.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+    $col1 = New-Object System.Windows.Controls.ColumnDefinition; $col1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+    $col2 = New-Object System.Windows.Controls.ColumnDefinition; $col2.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
     $grid.ColumnDefinitions.Add($col1); $grid.ColumnDefinitions.Add($col2)
     $grid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
 
@@ -1454,8 +1454,8 @@ function Render-FxPanel {
 
     # Base currency selector row
     $selectorGrid = New-Object System.Windows.Controls.Grid
-    $sc1 = New-Object System.Windows.Controls.ColumnDefinition; $sc1.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
-    $sc2 = New-Object System.Windows.Controls.ColumnDefinition; $sc2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
+    $sc1 = New-Object System.Windows.Controls.ColumnDefinition; $sc1.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
+    $sc2 = New-Object System.Windows.Controls.ColumnDefinition; $sc2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
     $selectorGrid.ColumnDefinitions.Add($sc1); $selectorGrid.ColumnDefinitions.Add($sc2)
     $selectorGrid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 8)
 
@@ -1513,8 +1513,8 @@ function Render-CryptoPanel {
 
     # Currency selector row
     $selectorGrid = New-Object System.Windows.Controls.Grid
-    $sc1 = New-Object System.Windows.Controls.ColumnDefinition; $sc1.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
-    $sc2 = New-Object System.Windows.Controls.ColumnDefinition; $sc2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
+    $sc1 = New-Object System.Windows.Controls.ColumnDefinition; $sc1.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
+    $sc2 = New-Object System.Windows.Controls.ColumnDefinition; $sc2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
     $selectorGrid.ColumnDefinitions.Add($sc1); $selectorGrid.ColumnDefinitions.Add($sc2)
     $selectorGrid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 8)
 
@@ -1583,9 +1583,9 @@ function Render-CryptoPanel {
         $priceStr = if ($coin.Price -ge 1) { "$curSymbol$($coin.Price.ToString('N2'))" } else { "$curSymbol$($coin.Price.ToString('N6'))" }
 
         $grid = New-Object System.Windows.Controls.Grid
-        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(50, [System.Windows.GridLengthUnitType]::Pixel)
-        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
-        $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(50, [System.Windows.GridUnitType]::Pixel)
+        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+        $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
         $grid.ColumnDefinitions.Add($c1); $grid.ColumnDefinitions.Add($c2); $grid.ColumnDefinitions.Add($c3)
         $grid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
 
@@ -1649,9 +1649,9 @@ function Render-IndicesPanel {
         $arrow = if ($idx.Change -ge 0) { [char]0x25B2 } else { [char]0x25BC }
 
         $grid = New-Object System.Windows.Controls.Grid
-        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
-        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
-        $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
+        $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
         $grid.ColumnDefinitions.Add($c1); $grid.ColumnDefinitions.Add($c2); $grid.ColumnDefinitions.Add($c3)
         $grid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
 
@@ -1702,8 +1702,8 @@ function Render-CommoditiesPanel {
 
     # Currency selector row
     $selectorGrid = New-Object System.Windows.Controls.Grid
-    $sc1 = New-Object System.Windows.Controls.ColumnDefinition; $sc1.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
-    $sc2 = New-Object System.Windows.Controls.ColumnDefinition; $sc2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
+    $sc1 = New-Object System.Windows.Controls.ColumnDefinition; $sc1.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
+    $sc2 = New-Object System.Windows.Controls.ColumnDefinition; $sc2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
     $selectorGrid.ColumnDefinitions.Add($sc1); $selectorGrid.ColumnDefinitions.Add($sc2)
     $selectorGrid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 8)
 
@@ -1761,9 +1761,9 @@ function Render-CommoditiesPanel {
         $arrow = if ($cmd.Change -ge 0) { [char]0x25B2 } else { [char]0x25BC }
 
         $grid = New-Object System.Windows.Controls.Grid
-        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
-        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
-        $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
+        $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
         $grid.ColumnDefinitions.Add($c1); $grid.ColumnDefinitions.Add($c2); $grid.ColumnDefinitions.Add($c3)
         $grid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
 
@@ -1857,19 +1857,26 @@ function Render-StocksPanel {
     $resultPanel = New-Object System.Windows.Controls.StackPanel
     $resultPanel.Name = 'stockResultPanel'
 
+    # Store references in script scope so nested Click handlers can access them
+    $script:stockTxtTicker = $txtTicker
+    $script:stockResultPanel = $resultPanel
+    $script:stockConverter = $Converter
+    $script:stockButtonsPanel = $stockButtonsPanel
+
     # Helper: populate stock buttons for a region
+    $script:stockPopulateButtons = $null
     $populateStockButtons = {
         param([string]$Region)
-        $stockButtonsPanel.Children.Clear()
+        $script:stockButtonsPanel.Children.Clear()
         $stocks = $script:majorStocks[$Region]
         foreach ($s in $stocks) {
             $sym = $s.Symbol
             $nam = $s.Name
             $btn = New-Object System.Windows.Controls.Button
             $btn.Content = $sym; $btn.ToolTip = $nam
-            $btn.Background = $Converter.ConvertFromString('#16213E')
-            $btn.Foreground = $Converter.ConvertFromString('#E0E0E0')
-            $btn.BorderBrush = $Converter.ConvertFromString('#0F3460')
+            $btn.Background = $script:stockConverter.ConvertFromString('#16213E')
+            $btn.Foreground = $script:stockConverter.ConvertFromString('#E0E0E0')
+            $btn.BorderBrush = $script:stockConverter.ConvertFromString('#0F3460')
             $btn.Padding = [System.Windows.Thickness]::new(6, 2, 6, 2)
             $btn.Margin = [System.Windows.Thickness]::new(0, 0, 4, 4)
             $btn.FontSize = 10; $btn.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
@@ -1877,35 +1884,40 @@ function Render-StocksPanel {
             $btn.Tag = $sym
             $btn.Add_Click({
                     $ticker = $this.Tag
-                    $txtTicker.Text = $ticker
-                    $resultPanel.Children.Clear()
+                    $script:stockTxtTicker.Text = $ticker
+                    $script:stockResultPanel.Children.Clear()
 
                     $loading = New-Object System.Windows.Controls.TextBlock
                     $loading.Text = "Looking up $ticker..."
-                    $loading.Foreground = $Converter.ConvertFromString('#888888'); $loading.FontSize = 11
-                    $resultPanel.Children.Add($loading) | Out-Null
+                    $loading.Foreground = $script:stockConverter.ConvertFromString('#888888'); $loading.FontSize = 11
+                    $script:stockResultPanel.Children.Add($loading) | Out-Null
 
                     $window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action] {
-                            $quote = Get-StockQuote -ApiKey $avKey -Ticker $ticker
-                            $profile = if (-not [string]::IsNullOrWhiteSpace($tdKey)) { Get-StockProfile -ApiKey $tdKey -Ticker $ticker } else { $null }
-                            $stats = if (-not [string]::IsNullOrWhiteSpace($tdKey)) { Get-StockStatistics -ApiKey $tdKey -Ticker $ticker } else { $null }
-                            $resultPanel.Children.Clear()
+                            $t = $script:stockTxtTicker.Text.Trim().ToUpper()
+                            $ak = $txtAlphaVantageKey.Text.Trim()
+                            $dk = $txtTwelveDataKey.Text.Trim()
+                            $quote = Get-StockQuote -ApiKey $ak -Ticker $t
+                            $profile = if (-not [string]::IsNullOrWhiteSpace($dk)) { Get-StockProfile -ApiKey $dk -Ticker $t } else { $null }
+                            $stats = if (-not [string]::IsNullOrWhiteSpace($dk)) { Get-StockStatistics -ApiKey $dk -Ticker $t } else { $null }
+                            $script:stockResultPanel.Children.Clear()
                             if ($quote) {
-                                Render-SingleStockQuote -Quote $quote -Profile $profile -Statistics $stats -Panel $resultPanel -Converter $Converter
+                                Render-SingleStockQuote -Quote $quote -Profile $profile -Statistics $stats -Panel $script:stockResultPanel -Converter $script:stockConverter
                             }
                             else {
                                 $err = New-Object System.Windows.Controls.TextBlock
-                                $err.Text = "No data for '$ticker' - check symbol or API limit (25/day)"
-                                $err.Foreground = $Converter.ConvertFromString('#FF4444'); $err.FontSize = 11; $err.TextWrapping = 'Wrap'
-                                $resultPanel.Children.Add($err) | Out-Null
+                                $err.Text = "No data for '$t' - check symbol or API limit (25/day)"
+                                $err.Foreground = $script:stockConverter.ConvertFromString('#FF4444'); $err.FontSize = 11; $err.TextWrapping = 'Wrap'
+                                $script:stockResultPanel.Children.Add($err) | Out-Null
                             }
                         })
                 })
-            $stockButtonsPanel.Children.Add($btn) | Out-Null
+            $script:stockButtonsPanel.Children.Add($btn) | Out-Null
         }
     }
+    $script:stockPopulateButtons = $populateStockButtons
 
     # Region tab buttons
+    $script:stockRegionRow = $null
     foreach ($region in $script:majorStocks.Keys) {
         $thisRegion = $region  # local copy for closure capture
         $rbtn = New-Object System.Windows.Controls.Button
@@ -1920,16 +1932,17 @@ function Render-StocksPanel {
         $rbtn.Add_Click({
                 $selectedRegion = $this.Tag
                 $script:selectedStockRegion = $selectedRegion
-                foreach ($child in $regionRow.Children) {
+                foreach ($child in $script:stockRegionRow.Children) {
                     $isActive = ($child.Tag -eq $selectedRegion)
-                    $child.Background = $Converter.ConvertFromString($(if ($isActive) { '#0F3460' } else { '#16213E' }))
-                    $child.Foreground = $Converter.ConvertFromString($(if ($isActive) { '#00CC66' } else { '#AAAAAA' }))
-                    $child.BorderBrush = $Converter.ConvertFromString($(if ($isActive) { '#00CC66' } else { '#0F3460' }))
+                    $child.Background = $script:stockConverter.ConvertFromString($(if ($isActive) { '#0F3460' } else { '#16213E' }))
+                    $child.Foreground = $script:stockConverter.ConvertFromString($(if ($isActive) { '#00CC66' } else { '#AAAAAA' }))
+                    $child.BorderBrush = $script:stockConverter.ConvertFromString($(if ($isActive) { '#00CC66' } else { '#0F3460' }))
                 }
-                & $populateStockButtons $selectedRegion
+                & $script:stockPopulateButtons $selectedRegion
             })
         $regionRow.Children.Add($rbtn) | Out-Null
     }
+    $script:stockRegionRow = $regionRow
 
     $marketDataContent.Children.Add($regionRow) | Out-Null
     & $populateStockButtons $script:selectedStockRegion
@@ -1948,33 +1961,36 @@ function Render-StocksPanel {
 
     # Search button click
     $btnSearch.Add_Click({
-            $ticker = $txtTicker.Text.Trim().ToUpper()
+            $ticker = $script:stockTxtTicker.Text.Trim().ToUpper()
             if ([string]::IsNullOrWhiteSpace($ticker)) { return }
-            $resultPanel.Children.Clear()
+            $script:stockResultPanel.Children.Clear()
 
             $loading = New-Object System.Windows.Controls.TextBlock
-            $loading.Text = "Looking up $ticker..."; $loading.Foreground = $Converter.ConvertFromString('#888888'); $loading.FontSize = 11
-            $resultPanel.Children.Add($loading) | Out-Null
+            $loading.Text = "Looking up $ticker..."; $loading.Foreground = $script:stockConverter.ConvertFromString('#888888'); $loading.FontSize = 11
+            $script:stockResultPanel.Children.Add($loading) | Out-Null
 
             $window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action] {
-                    $quote = Get-StockQuote -ApiKey $avKey -Ticker $ticker
-                    $profile = if (-not [string]::IsNullOrWhiteSpace($tdKey)) { Get-StockProfile -ApiKey $tdKey -Ticker $ticker } else { $null }
-                    $stats = if (-not [string]::IsNullOrWhiteSpace($tdKey)) { Get-StockStatistics -ApiKey $tdKey -Ticker $ticker } else { $null }
-                    $resultPanel.Children.Clear()
+                    $t = $script:stockTxtTicker.Text.Trim().ToUpper()
+                    $ak = $txtAlphaVantageKey.Text.Trim()
+                    $dk = $txtTwelveDataKey.Text.Trim()
+                    $quote = Get-StockQuote -ApiKey $ak -Ticker $t
+                    $profile = if (-not [string]::IsNullOrWhiteSpace($dk)) { Get-StockProfile -ApiKey $dk -Ticker $t } else { $null }
+                    $stats = if (-not [string]::IsNullOrWhiteSpace($dk)) { Get-StockStatistics -ApiKey $dk -Ticker $t } else { $null }
+                    $script:stockResultPanel.Children.Clear()
                     if ($quote) {
-                        Render-SingleStockQuote -Quote $quote -Profile $profile -Statistics $stats -Panel $resultPanel -Converter $Converter
+                        Render-SingleStockQuote -Quote $quote -Profile $profile -Statistics $stats -Panel $script:stockResultPanel -Converter $script:stockConverter
                     }
                     else {
                         $err = New-Object System.Windows.Controls.TextBlock
-                        $err.Text = "No data for '$ticker' - check symbol or API limit (25/day)"
-                        $err.Foreground = $Converter.ConvertFromString('#FF4444'); $err.FontSize = 11; $err.TextWrapping = 'Wrap'
-                        $resultPanel.Children.Add($err) | Out-Null
+                        $err.Text = "No data for '$t' - check symbol or API limit (25/day)"
+                        $err.Foreground = $script:stockConverter.ConvertFromString('#FF4444'); $err.FontSize = 11; $err.TextWrapping = 'Wrap'
+                        $script:stockResultPanel.Children.Add($err) | Out-Null
                     }
                 })
         })
 
     # Enter key in ticker textbox triggers search
-    $txtTicker.Add_KeyDown({
+    $script:stockTxtTicker.Add_KeyDown({
             if ($_.Key -eq [System.Windows.Input.Key]::Return) {
                 $btnSearch.RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent))
             }
@@ -3139,12 +3155,13 @@ $marketDataTimer.Start()
 
 # ── Show Window ───────────────────────────────────────────────
 
-# Reuse existing Application instance if running in the same session
+# Use ShowDialog so the script can be re-run in the same session
 $app = [System.Windows.Application]::Current
 if (-not $app) {
     $app = New-Object System.Windows.Application
+    $app.ShutdownMode = [System.Windows.ShutdownMode]::OnExplicitShutdown
 }
-$app.Run($window)
+$window.ShowDialog()
 
 # Cleanup
 $timer.Stop()

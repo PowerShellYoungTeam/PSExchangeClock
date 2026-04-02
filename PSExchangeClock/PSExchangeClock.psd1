@@ -19,7 +19,7 @@
         'Start-PSExchangeClock'
     )
     CmdletsToExport   = @()
-    VariablesToExport  = @()
+    VariablesToExport = @()
 
     # Private data for PSGallery publishing
     PrivateData       = @{

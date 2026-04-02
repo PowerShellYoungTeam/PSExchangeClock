@@ -1,50 +1,50 @@
 name: Publish to PowerShell Gallery
 
 on:
-  push:
-    tags:
-      - 'v*'
+    push:
+        tags:
+            - "v*"
 
 jobs:
-  publish:
-    name: Publish Module
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    publish:
+        name: Publish Module
+        runs-on: windows-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
 
-      - name: Install PSScriptAnalyzer
-        shell: pwsh
-        run: |
-          Set-PSRepository PSGallery -InstallationPolicy Trusted
-          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+            - name: Install PSScriptAnalyzer
+              shell: pwsh
+              run: |
+                  Set-PSRepository PSGallery -InstallationPolicy Trusted
+                  Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
 
-      - name: Run PSScriptAnalyzer (gate)
-        shell: pwsh
-        run: |
-          $results = Invoke-ScriptAnalyzer -Path ./PSExchangeClock -Recurse -Severity Warning
-          if ($results) {
-              $results | Format-Table -AutoSize
-              throw "PSScriptAnalyzer found $($results.Count) issue(s). Fix before publishing."
-          }
+            - name: Run PSScriptAnalyzer (gate)
+              shell: pwsh
+              run: |
+                  $results = Invoke-ScriptAnalyzer -Path ./PSExchangeClock -Recurse -Severity Warning
+                  if ($results) {
+                      $results | Format-Table -AutoSize
+                      throw "PSScriptAnalyzer found $($results.Count) issue(s). Fix before publishing."
+                  }
 
-      - name: Validate module manifest
-        shell: pwsh
-        run: |
-          Test-ModuleManifest -Path ./PSExchangeClock/PSExchangeClock.psd1
+            - name: Validate module manifest
+              shell: pwsh
+              run: |
+                  Test-ModuleManifest -Path ./PSExchangeClock/PSExchangeClock.psd1
 
-      - name: Test module import
-        shell: pwsh
-        run: |
-          Import-Module ./PSExchangeClock/PSExchangeClock.psd1 -Force
-          $mod = Get-Module PSExchangeClock
-          Write-Host "Loaded: $($mod.Name) v$($mod.Version)"
-          Write-Host "Exported functions: $($mod.ExportedFunctions.Keys -join ', ')"
-          Write-Host "Exported aliases: $($mod.ExportedAliases.Keys -join ', ')"
+            - name: Test module import
+              shell: pwsh
+              run: |
+                  Import-Module ./PSExchangeClock/PSExchangeClock.psd1 -Force
+                  $mod = Get-Module PSExchangeClock
+                  Write-Host "Loaded: $($mod.Name) v$($mod.Version)"
+                  Write-Host "Exported functions: $($mod.ExportedFunctions.Keys -join ', ')"
+                  Write-Host "Exported aliases: $($mod.ExportedAliases.Keys -join ', ')"
 
-      - name: Publish to PowerShell Gallery
-        shell: pwsh
-        env:
-          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
-        run: |
-          Publish-Module -Path ./PSExchangeClock -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose
+            - name: Publish to PowerShell Gallery
+              shell: pwsh
+              env:
+                  PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+              run: |
+                  Publish-Module -Path ./PSExchangeClock -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose

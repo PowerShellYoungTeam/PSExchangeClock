@@ -1,0 +1,90 @@
+TOPIC
+    about_PSExchangeClock
+
+SHORT DESCRIPTION
+    A real-time WPF dashboard for monitoring global stock exchanges, market
+    data, forex, cryptocurrency, commodities, indices, and financial news.
+
+LONG DESCRIPTION
+    PSExchangeClock started as a simple countdown timer for the London Stock
+    Exchange close and has evolved into a comprehensive global financial
+    markets monitoring dashboard built entirely in PowerShell and WPF.
+
+    The dashboard provides:
+
+    * Live countdown timers with color-coded status for 20 major stock
+      exchanges worldwide (NYSE, NASDAQ, LSE, Tokyo, Shanghai, Hong Kong,
+      Frankfurt, Euronext Paris, Toronto, Sydney, and more)
+
+    * An interactive world map with clickable exchange markers and flyout
+      detail panels (supports NASA Earth at Night satellite imagery or
+      vector continent outlines)
+
+    * World clocks showing current times across six base time zones plus
+      dynamic zones for active exchanges
+
+    * A market data sidebar with tabbed content:
+        - Breaking financial news (Reuters, BBC, CNBC RSS feeds)
+        - Live forex rates (Frankfurter API / ECB XML fallback)
+        - Cryptocurrency prices (CoinGecko API, top 10 coins)
+        - Stock indices (S&P 500, NASDAQ, DAX, FTSE, Nikkei via ETF proxies)
+        - Commodity prices (Gold, Silver, Oil, Natural Gas, Wheat)
+        - Individual stock quotes with company profiles and statistics
+
+    * Desktop notifications at configurable thresholds (30, 15, 5 minutes)
+      before exchange close
+
+    * Secure API key management via Windows Credential Manager,
+      SecretManagement module, or CliXml encrypted storage
+
+    * User preference persistence (active exchanges, notification settings,
+      preferred currencies, always-on-top, secrets backend)
+
+    * System tray integration with minimize-to-tray and always-on-top toggle
+
+    * Professional dark-themed UI with sortable/filterable exchange DataGrid
+
+    * Lunch break tracking for Tokyo, Shanghai, and Hong Kong exchanges
+
+    * Holiday support via holidays.json for market closure overrides
+
+REQUIREMENTS
+    Windows PowerShell 5.1 or PowerShell 7+ on Windows (WPF requires Windows)
+    .NET Framework 4.5+ (for WPF assemblies)
+    Internet connection (for market data APIs — exchange hours work offline)
+
+    Optional API keys for extended data:
+    * Twelve Data (free tier: 800 req/day) — indices, commodities, stock profiles
+    * Alpha Vantage (free tier: 25 req/day) — individual stock quotes
+
+GETTING STARTED
+    Install from the PowerShell Gallery:
+
+        Install-Module PSExchangeClock
+        Start-PSExchangeClock
+
+    Or use the full function name:
+
+        New-StockExchangeCountdownDashboard
+
+    To refresh exchange trading hours from Wikipedia:
+
+        Get-StockExchangeData -ForceRefresh
+
+CONFIGURATION
+    User preferences are stored in:
+
+        $env:APPDATA\PSExchangeClock\user-preferences.json
+
+    This file is created automatically on first run from the example template
+    included with the module. Settings can also be changed via the Settings tab
+    in the dashboard UI.
+
+    Holiday overrides can be configured by editing the holidays.json file in
+    the module's Data directory. Each exchange code (e.g., XNYS, XLON) maps
+    to an array of ISO 8601 date strings (YYYY-MM-DD).
+
+SEE ALSO
+    New-StockExchangeCountdownDashboard
+    Get-StockExchangeData
+    https://github.com/PowerShellYoungTeam/PSExchangeClock

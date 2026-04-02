@@ -1,23 +1,40 @@
+function Get-StockExchangeData {
 <#
 .SYNOPSIS
-    Scrapes stock exchange trading hours and caches to exchange-data.json.
+    Retrieves stock exchange trading hours for 20 major global exchanges.
 .DESCRIPTION
     Fetches trading hours data from Wikipedia, parses it, and saves to a local
     JSON cache file. Includes hardcoded fallback data for 20 major exchanges
-    so the tool works offline.
+    so the tool works offline. Used by PSExchangeClock to determine exchange
+    open/close times, lunch breaks, and geographic coordinates.
+
+    Supported exchanges: NYSE, NASDAQ, LSE, Euronext Paris, Tokyo, Shanghai,
+    Hong Kong, Toronto, Frankfurt, Sydney, Bombay, NSE India, Korea,
+    Switzerland, Johannesburg, B3 Brazil, Mexico, Singapore, Taiwan, Moscow.
 .PARAMETER ForceRefresh
     Bypass the cache and re-scrape from Wikipedia.
 .PARAMETER OutputPath
-    Path to save the JSON cache file. Defaults to exchange-data.json in the script directory.
+    Path to save the JSON cache file. Defaults to exchange-data.json in the
+    module Data directory.
 .EXAMPLE
-    .\Get-StockExchangeData.ps1
-    .\Get-StockExchangeData.ps1 -ForceRefresh
-    $data = .\Get-StockExchangeData.ps1 -Verbose
+    Get-StockExchangeData
+    # Uses cached data if available, otherwise fetches from Wikipedia
+.EXAMPLE
+    Get-StockExchangeData -ForceRefresh
+    # Forces a fresh scrape from Wikipedia
+.NOTES
+    Author  : PowerShellYoungTeam
+    Version : 1.0.0
+    Project : https://github.com/PowerShellYoungTeam/PSExchangeClock
+.LINK
+    https://github.com/PowerShellYoungTeam/PSExchangeClock
+.LINK
+    New-StockExchangeCountdownDashboard
 #>
 [CmdletBinding()]
 param(
     [switch]$ForceRefresh,
-    [string]$OutputPath = (Join-Path $PSScriptRoot 'exchange-data.json')
+    [string]$OutputPath = (Join-Path (Split-Path $PSScriptRoot -Parent) 'Data\exchange-data.json')
 )
 
 function Get-DefaultExchangeData {
@@ -479,3 +496,4 @@ catch {
 }
 
 return $exchanges
+} # end function Get-StockExchangeData

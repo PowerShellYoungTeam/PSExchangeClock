@@ -1,12 +1,37 @@
+function New-StockExchangeCountdownDashboard {
 <#
 .SYNOPSIS
-    Stock Exchange Countdown Dashboard
+    PSExchangeClock — Global Stock Exchange & Market Data Dashboard
 .DESCRIPTION
-    WPF dashboard showing live countdown timers to stock exchange closing times worldwide.
-    Features: world map with markers, world clocks, color-coded status, sortable exchange list,
-    configurable exchange selection, and desktop notifications before close.
+    A real-time WPF dashboard for monitoring global stock exchange closing times and
+    live market data. Built in PowerShell with a professional dark-themed interface.
+
+    Features include:
+    - Live countdown timers with color-coded status for 20 major exchanges worldwide
+    - Interactive world map with clickable exchange markers (NASA Earth at Night imagery)
+    - World clocks across multiple time zones
+    - Market data sidebar: financial news (RSS), forex rates, cryptocurrency prices,
+      stock indices, commodity prices, and individual stock quotes with profiles
+    - Desktop notifications at configurable thresholds before exchange close
+    - Secure API key management (Credential Manager / SecretManagement / CliXml)
+    - Lunch break tracking for Tokyo, Shanghai, and Hong Kong
+    - Holiday support via holidays.json
+    - System tray integration, always-on-top toggle, sortable DataGrid
+    - User preference persistence and multi-currency support
 .EXAMPLE
-    .\New-StockExchangeCountdownDashboard.ps1
+    New-StockExchangeCountdownDashboard
+    # Launch the dashboard
+.EXAMPLE
+    Start-PSExchangeClock
+    # Launch via the convenience alias
+.NOTES
+    Author  : PowerShellYoungTeam
+    Version : 1.0.0
+    Project : https://github.com/PowerShellYoungTeam/PSExchangeClock
+.LINK
+    https://github.com/PowerShellYoungTeam/PSExchangeClock
+.LINK
+    Get-StockExchangeData
 #>
 [CmdletBinding()]
 param()
@@ -18,18 +43,34 @@ Add-Type -AssemblyName WindowsBase
 Add-Type -AssemblyName System.Windows.Forms
 
 # ── Load Exchange Data ────────────────────────────────────────
-$scriptDir = $PSScriptRoot
-$scraperPath = Join-Path $scriptDir 'Get-StockExchangeData.ps1'
-$holidaysPath = Join-Path $scriptDir 'holidays.json'
-$detailsPath = Join-Path $scriptDir 'exchange-details.json'
-$prefsPath = Join-Path $scriptDir 'user-preferences.json'
-$mapImagePath = Join-Path $scriptDir 'worldmap.jpg'
+# Resolve module root (Public/ is one level below the module directory)
+$moduleRoot = Split-Path $PSScriptRoot -Parent
+$dataDir    = Join-Path $moduleRoot 'Data'
 
-if (Test-Path $scraperPath) {
-    $allExchanges = & $scraperPath
+$holidaysPath = Join-Path $dataDir 'holidays.json'
+$detailsPath  = Join-Path $dataDir 'exchange-details.json'
+
+# User preferences stored in AppData (module dir may be read-only when installed)
+$appDataDir = Join-Path $env:APPDATA 'PSExchangeClock'
+if (-not (Test-Path $appDataDir)) {
+    New-Item -Path $appDataDir -ItemType Directory -Force | Out-Null
 }
-else {
-    Write-Warning "Scraper not found at $scraperPath. Using inline fallback."
+$prefsPath = Join-Path $appDataDir 'user-preferences.json'
+# Seed from example if no user prefs exist yet
+if (-not (Test-Path $prefsPath)) {
+    $examplePrefs = Join-Path $dataDir 'user-preferences.example.json'
+    if (Test-Path $examplePrefs) {
+        Copy-Item $examplePrefs $prefsPath -Force
+    }
+}
+$mapImagePath = Join-Path $appDataDir 'worldmap.jpg'
+
+# Get-StockExchangeData is loaded as a module function
+try {
+    $allExchanges = Get-StockExchangeData
+}
+catch {
+    Write-Warning "Failed to load exchange data: $($_.Exception.Message). Using empty set."
     $allExchanges = @()
 }
 
@@ -387,7 +428,7 @@ function Get-StatusColor {
 $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Stock Exchange Countdown Dashboard"
+        Title="PSExchangeClock — Global Market Dashboard"
         Height="750" Width="1100"
         MinHeight="500" MinWidth="800"
         Background="#1A1A2E"
@@ -2857,11 +2898,11 @@ function Update-AllDisplays {
     if ($nextCloseExchange -and $nextCloseRemaining) {
         $ncs = "{0:D2}:{1:D2}:{2:D2}" -f [int]$nextCloseRemaining.TotalHours, $nextCloseRemaining.Minutes, $nextCloseRemaining.Seconds
         $txtNextClose.Text = "Next close: $nextCloseExchange in $ncs"
-        $window.Title = "Stock Exchange Countdown - Next: $nextCloseExchange $ncs"
+        $window.Title = "PSExchangeClock — Next: $nextCloseExchange $ncs"
     }
     else {
         $txtNextClose.Text = 'All markets closed'
-        $window.Title = 'Stock Exchange Countdown Dashboard'
+        $window.Title = 'PSExchangeClock — Global Market Dashboard'
     }
 
     $txtStatus.Text = "Active: $(@($script:exchangeRows | Where-Object { $_.IsActive }).Count) exchanges | Updated: $([DateTime]::Now.ToString('HH:mm:ss'))"
@@ -3093,7 +3134,7 @@ $window.Add_Loaded({
         Update-ApiKeyTabVisibility
 
         # Set last updated from cache
-        $cachePath = Join-Path $scriptDir 'exchange-data.json'
+        $cachePath = Join-Path $dataDir 'exchange-data.json'
         if (Test-Path $cachePath) {
             try {
                 $cache = Get-Content $cachePath -Raw | ConvertFrom-Json
@@ -3170,3 +3211,4 @@ if ($script:notifyIcon) {
     $script:notifyIcon.Visible = $false
     $script:notifyIcon.Dispose()
 }
+} # end function New-StockExchangeCountdownDashboard

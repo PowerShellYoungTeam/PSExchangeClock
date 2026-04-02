@@ -15,7 +15,6 @@
     "MapStyle": "NightSatellite",
     "MapProjection": "Flat",
     "MapOverlays": [
-        "DayNight",
-        "TimeLine"
+        "DayNight"
     ]
 }

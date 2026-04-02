@@ -98,6 +98,8 @@ function Save-UserPreferences {
         if ($chkNotify15 -and $chkNotify15.IsChecked) { $prefs.NotifyThresholds += 15 }
         if ($chkNotify5 -and $chkNotify5.IsChecked) { $prefs.NotifyThresholds += 5 }
         if ($chkAlwaysOnTop) { $prefs.AlwaysOnTop = [bool]$chkAlwaysOnTop.IsChecked }
+        if ($txtTwelveDataKey) { $prefs['TwelveDataApiKey'] = $txtTwelveDataKey.Text.Trim() }
+        if ($txtAlphaVantageKey) { $prefs['AlphaVantageApiKey'] = $txtAlphaVantageKey.Text.Trim() }
     }
     catch { }
     $prefs | ConvertTo-Json -Depth 3 | Set-Content -Path $prefsPath -Encoding UTF8
@@ -270,9 +272,40 @@ $xaml = @'
                     <Border Grid.Row="0" Grid.Column="0" Background="#0D1B2A" CornerRadius="6" Margin="5" BorderBrush="#0F3460" BorderThickness="1">
                         <Grid>
                             <Canvas x:Name="canvasMap" Background="Transparent" ClipToBounds="True"/>
-                            <!-- Detail Flyout Panel (hidden by default) -->
+
+                            <!-- Market Data Panel (shown when no exchange flyout is open) -->
+                            <Border x:Name="marketDataPanel" Background="#CC1A1A2E" BorderBrush="#0F3460" BorderThickness="1" CornerRadius="6"
+                                    Width="300" HorizontalAlignment="Left" VerticalAlignment="Stretch" Margin="5,5,0,5"
+                                    Visibility="Visible">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <!-- Market Data Header -->
+                                    <Border Grid.Row="0" Background="#0F3460" CornerRadius="6,6,0,0" Padding="8,6">
+                                        <TextBlock x:Name="marketDataTitle" Text="Market Data" FontSize="13" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Center"/>
+                                    </Border>
+                                    <!-- Tab Buttons -->
+                                    <WrapPanel Grid.Row="1" x:Name="marketTabBar" HorizontalAlignment="Center" Margin="4,6,4,2">
+                                        <Button x:Name="btnTabNews" Content=" News " Background="#0F3460" Foreground="#00CC66" BorderBrush="#00CC66" BorderThickness="1" Margin="2" Padding="8,3" FontSize="10" Cursor="Hand"/>
+                                        <Button x:Name="btnTabFx" Content=" FX Rates " Background="#16213E" Foreground="#AAAAAA" BorderBrush="#0F3460" BorderThickness="1" Margin="2" Padding="8,3" FontSize="10" Cursor="Hand"/>
+                                        <Button x:Name="btnTabCrypto" Content=" Crypto " Background="#16213E" Foreground="#AAAAAA" BorderBrush="#0F3460" BorderThickness="1" Margin="2" Padding="8,3" FontSize="10" Cursor="Hand"/>
+                                        <Button x:Name="btnTabIndices" Content=" Indices " Background="#16213E" Foreground="#AAAAAA" BorderBrush="#0F3460" BorderThickness="1" Margin="2" Padding="8,3" FontSize="10" Cursor="Hand" Visibility="Collapsed"/>
+                                        <Button x:Name="btnTabCommodities" Content=" Commodities " Background="#16213E" Foreground="#AAAAAA" BorderBrush="#0F3460" BorderThickness="1" Margin="2" Padding="8,3" FontSize="10" Cursor="Hand" Visibility="Collapsed"/>
+                                        <Button x:Name="btnTabStocks" Content=" Stocks " Background="#16213E" Foreground="#AAAAAA" BorderBrush="#0F3460" BorderThickness="1" Margin="2" Padding="8,3" FontSize="10" Cursor="Hand" Visibility="Collapsed"/>
+                                    </WrapPanel>
+                                    <!-- Tab Content Area -->
+                                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0">
+                                        <StackPanel x:Name="marketDataContent" Margin="10,6"/>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
+
+                            <!-- Detail Flyout Panel (hidden by default, LEFT aligned to not cover Far East) -->
                             <Border x:Name="flyoutPanel" Background="#1A1A2E" BorderBrush="#0F3460" BorderThickness="1" CornerRadius="6"
-                                    Width="280" HorizontalAlignment="Right" VerticalAlignment="Stretch" Margin="0,5,5,5"
+                                    Width="280" HorizontalAlignment="Left" VerticalAlignment="Stretch" Margin="5,5,0,5"
                                     Visibility="Collapsed">
                                 <Grid>
                                     <Grid.RowDefinitions>
@@ -405,6 +438,35 @@ $xaml = @'
                             <Button x:Name="btnResetDefaults" Content="  Reset to Defaults  " Background="#0F3460" Foreground="#E0E0E0" Padding="10,5" BorderBrush="#FFD700" Margin="0,0,10,0" FontSize="13" Cursor="Hand"/>
                         </StackPanel>
 
+                        <TextBlock Text="Market Data API Keys (Optional)" FontSize="16" FontWeight="Bold" Foreground="#E0E0E0" Margin="0,20,0,10"/>
+                        <TextBlock Text="Enter free API keys to unlock stock indices and individual stock quotes in the Market Data panel." Foreground="#888888" FontSize="11" Margin="10,0,0,8" TextWrapping="Wrap"/>
+
+                        <StackPanel Margin="10,5">
+                            <TextBlock Text="Twelve Data API Key (free: twelvedata.com/pricing — 800 req/day, unlocks Indices tab)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,3"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" x:Name="txtTwelveDataKey" Background="#16213E" Foreground="#E0E0E0" BorderBrush="#0F3460" Padding="5,3" FontSize="12" FontFamily="Consolas"/>
+                                <TextBlock Grid.Column="1" x:Name="txtTwelveDataStatus" Text="" Foreground="#888888" FontSize="14" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel Margin="10,10,10,5">
+                            <TextBlock Text="Alpha Vantage API Key (free: alphavantage.co/support/#api-key — 25 req/day, unlocks Stocks tab)" Foreground="#AAAAAA" FontSize="11" Margin="0,0,0,3"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" x:Name="txtAlphaVantageKey" Background="#16213E" Foreground="#E0E0E0" BorderBrush="#0F3460" Padding="5,3" FontSize="12" FontFamily="Consolas"/>
+                                <TextBlock Grid.Column="1" x:Name="txtAlphaVantageStatus" Text="" Foreground="#888888" FontSize="14" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <Button x:Name="btnSaveApiKeys" Content="  Save API Keys  " Background="#0F3460" Foreground="#E0E0E0" Padding="10,5" BorderBrush="#00CC66" Margin="10,10,10,0" FontSize="13" Cursor="Hand" HorizontalAlignment="Left"/>
+
                         <TextBlock x:Name="txtLastUpdated" Text="Last updated: --" Foreground="#888888" Margin="10,15,0,0" FontSize="12"/>
                     </StackPanel>
                 </ScrollViewer>
@@ -455,7 +517,928 @@ $flyoutTitle = $window.FindName('flyoutTitle')
 $flyoutContent = $window.FindName('flyoutContent')
 $btnCloseFlyout = $window.FindName('btnCloseFlyout')
 
+# Market Data Panel controls
+$marketDataPanel = $window.FindName('marketDataPanel')
+$marketDataTitle = $window.FindName('marketDataTitle')
+$marketTabBar = $window.FindName('marketTabBar')
+$marketDataContent = $window.FindName('marketDataContent')
+$btnTabNews = $window.FindName('btnTabNews')
+$btnTabFx = $window.FindName('btnTabFx')
+$btnTabCrypto = $window.FindName('btnTabCrypto')
+$btnTabIndices = $window.FindName('btnTabIndices')
+$btnTabCommodities = $window.FindName('btnTabCommodities')
+$btnTabStocks = $window.FindName('btnTabStocks')
+
+# API key controls
+$txtTwelveDataKey = $window.FindName('txtTwelveDataKey')
+$txtAlphaVantageKey = $window.FindName('txtAlphaVantageKey')
+$txtTwelveDataStatus = $window.FindName('txtTwelveDataStatus')
+$txtAlphaVantageStatus = $window.FindName('txtAlphaVantageStatus')
+$btnSaveApiKeys = $window.FindName('btnSaveApiKeys')
+
 $script:currentFlyoutCode = $null
+$script:activeMarketTab = 'News'
+$script:fxBaseCurrency = 'USD'
+$script:cryptoCurrency = 'usd'
+
+# ── Market Data Cache ─────────────────────────────────────────
+
+$script:newsCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
+$script:fxCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
+$script:cryptoCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
+$script:indicesCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
+$script:commoditiesCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
+$script:stockQuoteCache = @{}
+
+# ── Market Data Fetch Functions ───────────────────────────────
+
+function Get-FinancialNews {
+    # Check cache (5 minute TTL)
+    if ($script:newsCache.Data -and ([datetime]::Now - $script:newsCache.LastFetch).TotalMinutes -lt 5) {
+        return $script:newsCache.Data
+    }
+
+    $feeds = @(
+        @{ Name = 'Reuters'; Url = 'https://feeds.reuters.com/reuters/businessNews' },
+        @{ Name = 'BBC'; Url = 'https://feeds.bbc.co.uk/news/business/rss.xml' },
+        @{ Name = 'CNBC'; Url = 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114' }
+    )
+
+    $allItems = @()
+    foreach ($feed in $feeds) {
+        try {
+            $response = Invoke-WebRequest -Uri $feed.Url -UseBasicParsing -TimeoutSec 10
+            [xml]$rss = $response.Content
+            $items = $rss.rss.channel.item | Select-Object -First 5
+            foreach ($item in $items) {
+                $pubDate = $null
+                try { $pubDate = [datetime]::Parse($item.pubDate) } catch { $pubDate = [datetime]::Now }
+                $allItems += [PSCustomObject]@{
+                    Title     = ($item.title -replace '<[^>]+>', '').Trim()
+                    Source    = $feed.Name
+                    Published = $pubDate
+                    Link      = $item.link
+                }
+            }
+        }
+        catch {
+            Write-Verbose "Failed to fetch $($feed.Name) RSS: $($_.Exception.Message)"
+        }
+    }
+
+    if ($allItems.Count -eq 0) { return $null }
+
+    # Deduplicate by title similarity (exact match after lowercase + trim)
+    $seen = @{}
+    $deduped = @()
+    foreach ($item in ($allItems | Sort-Object Published -Descending)) {
+        $key = ($item.Title.ToLower().Trim() -replace '[^a-z0-9 ]', '')
+        if (-not $seen.ContainsKey($key)) {
+            $seen[$key] = $true
+            $deduped += $item
+        }
+    }
+
+    $result = $deduped | Select-Object -First 10
+    $script:newsCache.Data = $result
+    $script:newsCache.LastFetch = [datetime]::Now
+    return $result
+}
+
+function Get-ForexRates {
+    param([string]$BaseCurrency = 'USD')
+    # Check cache (10 minute TTL, invalidate if base changed)
+    if ($script:fxCache.Data -and $script:fxCache.Data.Base -eq $BaseCurrency -and ([datetime]::Now - $script:fxCache.LastFetch).TotalMinutes -lt 10) {
+        return $script:fxCache.Data
+    }
+
+    $allCurrencies = @('USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'CNY', 'HKD', 'SGD', 'KRW', 'INR', 'BRL', 'ZAR', 'MXN')
+    $currencies = ($allCurrencies | Where-Object { $_ -ne $BaseCurrency }) -join ','
+
+    # Try Frankfurter API first
+    try {
+        $url = "https://api.frankfurter.dev/v1/latest?base=$BaseCurrency&symbols=$currencies"
+        $response = Invoke-RestMethod -Uri $url -TimeoutSec 10
+        $rates = @()
+        foreach ($prop in $response.rates.PSObject.Properties) {
+            $rates += [PSCustomObject]@{
+                Currency = $prop.Name
+                Rate     = [math]::Round([double]$prop.Value, 4)
+                Source   = 'Frankfurter'
+            }
+        }
+        $result = [PSCustomObject]@{ Base = $BaseCurrency; Date = $response.date; Rates = $rates }
+        $script:fxCache.Data = $result
+        $script:fxCache.LastFetch = [datetime]::Now
+        return $result
+    }
+    catch {
+        Write-Verbose "Frankfurter API failed: $($_.Exception.Message)"
+    }
+
+    # Fallback: ECB XML
+    try {
+        $ecbResponse = Invoke-WebRequest -Uri 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml' -UseBasicParsing -TimeoutSec 10
+        [xml]$ecbXml = $ecbResponse.Content
+        $ns = New-Object System.Xml.XmlNamespaceManager $ecbXml.NameTable
+        $ns.AddNamespace('gesmes', 'http://www.gesmes.org/xml/2002-08-01')
+        $ns.AddNamespace('ecb', 'http://www.ecb.int/vocabulary/2002-08-01/eurofxref')
+        $cubeNodes = $ecbXml.SelectNodes('//ecb:Cube[@currency]', $ns)
+        $eurRates = @{}
+        foreach ($node in $cubeNodes) {
+            $eurRates[$node.currency] = [double]$node.rate
+        }
+        # Convert EUR-based rates to selected base
+        $rates = @()
+        if ($BaseCurrency -eq 'EUR') {
+            foreach ($cur in ($currencies -split ',')) {
+                if ($eurRates.ContainsKey($cur)) {
+                    $rates += [PSCustomObject]@{ Currency = $cur; Rate = [math]::Round($eurRates[$cur], 4); Source = 'ECB' }
+                }
+            }
+        }
+        elseif ($eurRates.ContainsKey($BaseCurrency)) {
+            $baseRate = $eurRates[$BaseCurrency]
+            foreach ($cur in ($currencies -split ',')) {
+                if ($cur -eq $BaseCurrency) { continue }
+                if ($cur -eq 'EUR') {
+                    $rates += [PSCustomObject]@{ Currency = 'EUR'; Rate = [math]::Round(1 / $baseRate, 4); Source = 'ECB' }
+                }
+                elseif ($eurRates.ContainsKey($cur)) {
+                    $converted = [math]::Round($eurRates[$cur] / $baseRate, 4)
+                    $rates += [PSCustomObject]@{ Currency = $cur; Rate = $converted; Source = 'ECB' }
+                }
+            }
+        }
+        $result = [PSCustomObject]@{ Base = $BaseCurrency; Date = (Get-Date).ToString('yyyy-MM-dd'); Rates = $rates }
+        $script:fxCache.Data = $result
+        $script:fxCache.LastFetch = [datetime]::Now
+        return $result
+    }
+    catch {
+        Write-Verbose "ECB fallback failed: $($_.Exception.Message)"
+    }
+
+    return $null
+}
+
+function Get-CryptoPrices {
+    param([string]$VsCurrency = 'usd')
+    # Check cache (5 minute TTL, invalidate if currency changed)
+    if ($script:cryptoCache.Data -and $script:cryptoCache.Currency -eq $VsCurrency -and ([datetime]::Now - $script:cryptoCache.LastFetch).TotalMinutes -lt 5) {
+        return $script:cryptoCache.Data
+    }
+
+    try {
+        $url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=$VsCurrency&order=market_cap_desc&per_page=10&sparkline=false"
+        $response = Invoke-RestMethod -Uri $url -TimeoutSec 10
+        $result = @()
+        foreach ($coin in $response) {
+            $result += [PSCustomObject]@{
+                Symbol    = $coin.symbol.ToUpper()
+                Name      = $coin.name
+                Price     = [double]$coin.current_price
+                Change24h = [math]::Round([double]$coin.price_change_percentage_24h, 2)
+                MarketCap = [double]$coin.market_cap
+            }
+        }
+        $script:cryptoCache.Data = $result
+        $script:cryptoCache.Currency = $VsCurrency
+        $script:cryptoCache.LastFetch = [datetime]::Now
+        return $result
+    }
+    catch {
+        Write-Verbose "CoinGecko API failed: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Get-StockIndices {
+    param([string]$ApiKey)
+    if ([string]::IsNullOrWhiteSpace($ApiKey)) { return $null }
+
+    # Check cache (15 minute TTL)
+    if ($script:indicesCache.Data -and ([datetime]::Now - $script:indicesCache.LastFetch).TotalMinutes -lt 15) {
+        return $script:indicesCache.Data
+    }
+
+    # Free tier: index symbols (SPX, DJI etc.) require paid plans.
+    # Use index-tracking ETFs which are available on the free tier.
+    $indices = @(
+        @{ Symbol = 'SPY'; Name = 'S&P 500 (SPY)' },
+        @{ Symbol = 'QQQ'; Name = 'NASDAQ 100 (QQQ)' },
+        @{ Symbol = 'DIA'; Name = 'Dow Jones (DIA)' },
+        @{ Symbol = 'EWU'; Name = 'FTSE 100 (EWU)' },
+        @{ Symbol = 'EWG'; Name = 'DAX (EWG)' },
+        @{ Symbol = 'EWJ'; Name = 'Nikkei 225 (EWJ)' },
+        @{ Symbol = 'FXI'; Name = 'China Large-Cap (FXI)' },
+        @{ Symbol = 'INDA'; Name = 'India (INDA)' }
+    )
+
+    # Fetch in small batches to stay within 8 credits/min free tier limit
+    $result = @()
+    $batches = @()
+    for ($i = 0; $i -lt $indices.Count; $i += 8) {
+        $batch = $indices[$i..([math]::Min($i + 7, $indices.Count - 1))]
+        $batches += , @($batch)
+    }
+
+    try {
+        foreach ($batch in $batches) {
+            $symbolList = ($batch | ForEach-Object { $_.Symbol }) -join ','
+            $url = "https://api.twelvedata.com/quote?symbol=$symbolList&apikey=$ApiKey"
+            $response = Invoke-RestMethod -Uri $url -TimeoutSec 15
+            foreach ($idx in $batch) {
+                # Single symbol returns data directly; multiple returns keyed object
+                $data = if ($batch.Count -eq 1) { $response } else { $response.($idx.Symbol) }
+                if ($data -and $data.close -and -not $data.code) {
+                    $change = 0
+                    if ($data.previous_close -and [double]$data.previous_close -ne 0) {
+                        $change = [math]::Round((([double]$data.close - [double]$data.previous_close) / [double]$data.previous_close) * 100, 2)
+                    }
+                    $result += [PSCustomObject]@{
+                        Symbol = $idx.Symbol
+                        Name   = $idx.Name
+                        Price  = [math]::Round([double]$data.close, 2)
+                        Change = $change
+                    }
+                }
+            }
+        }
+        if ($result.Count -gt 0) {
+            $script:indicesCache.Data = $result
+            $script:indicesCache.LastFetch = [datetime]::Now
+        }
+        return $result
+    }
+    catch {
+        Write-Verbose "Twelve Data API failed: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Get-CommodityPrices {
+    param([string]$ApiKey)
+    if ([string]::IsNullOrWhiteSpace($ApiKey)) { return $null }
+
+    # Check cache (15 minute TTL)
+    if ($script:commoditiesCache.Data -and ([datetime]::Now - $script:commoditiesCache.LastFetch).TotalMinutes -lt 15) {
+        return $script:commoditiesCache.Data
+    }
+
+    # Commodity-tracking ETFs available on free Twelve Data tier
+    $commodities = @(
+        @{ Symbol = 'GLD'; Name = 'Gold (GLD)'; Unit = 'oz' },
+        @{ Symbol = 'SLV'; Name = 'Silver (SLV)'; Unit = 'oz' },
+        @{ Symbol = 'USO'; Name = 'Crude Oil (USO)'; Unit = 'bbl' },
+        @{ Symbol = 'UNG'; Name = 'Natural Gas (UNG)'; Unit = 'mmBtu' },
+        @{ Symbol = 'PPLT'; Name = 'Platinum (PPLT)'; Unit = 'oz' },
+        @{ Symbol = 'WEAT'; Name = 'Wheat (WEAT)'; Unit = 'bu' },
+        @{ Symbol = 'DBA'; Name = 'Agriculture (DBA)'; Unit = '' }
+    )
+
+    $result = @()
+    try {
+        $symbolList = ($commodities | ForEach-Object { $_.Symbol }) -join ','
+        $url = "https://api.twelvedata.com/quote?symbol=$symbolList&apikey=$ApiKey"
+        $response = Invoke-RestMethod -Uri $url -TimeoutSec 15
+        foreach ($cmd in $commodities) {
+            $data = if ($commodities.Count -eq 1) { $response } else { $response.($cmd.Symbol) }
+            if ($data -and $data.close -and -not $data.code) {
+                $change = 0
+                if ($data.previous_close -and [double]$data.previous_close -ne 0) {
+                    $change = [math]::Round((([double]$data.close - [double]$data.previous_close) / [double]$data.previous_close) * 100, 2)
+                }
+                $result += [PSCustomObject]@{
+                    Symbol = $cmd.Symbol
+                    Name   = $cmd.Name
+                    Price  = [math]::Round([double]$data.close, 2)
+                    Change = $change
+                }
+            }
+        }
+        if ($result.Count -gt 0) {
+            $script:commoditiesCache.Data = $result
+            $script:commoditiesCache.LastFetch = [datetime]::Now
+        }
+        return $result
+    }
+    catch {
+        Write-Verbose "Twelve Data commodities fetch failed: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Get-StockQuote {
+    param([string]$ApiKey, [string]$Ticker)
+    if ([string]::IsNullOrWhiteSpace($ApiKey) -or [string]::IsNullOrWhiteSpace($Ticker)) { return $null }
+
+    $Ticker = $Ticker.Trim().ToUpper()
+
+    # Check cache (30 minute TTL per ticker)
+    if ($script:stockQuoteCache.ContainsKey($Ticker)) {
+        $cached = $script:stockQuoteCache[$Ticker]
+        if ($cached.Data -and ([datetime]::Now - $cached.LastFetch).TotalMinutes -lt 30) {
+            return $cached.Data
+        }
+    }
+
+    try {
+        $url = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=$Ticker&apikey=$ApiKey"
+        $response = Invoke-RestMethod -Uri $url -TimeoutSec 10
+        $quote = $response.'Global Quote'
+        if ($quote -and $quote.'05. price') {
+            $result = [PSCustomObject]@{
+                Symbol    = $quote.'01. symbol'
+                Price     = [math]::Round([double]$quote.'05. price', 2)
+                Change    = [math]::Round([double]$quote.'09. change', 2)
+                ChangePct = $quote.'10. change percent' -replace '%', ''
+                Open      = [math]::Round([double]$quote.'02. open', 2)
+                High      = [math]::Round([double]$quote.'03. high', 2)
+                Low       = [math]::Round([double]$quote.'04. low', 2)
+                Volume    = $quote.'06. volume'
+            }
+            $script:stockQuoteCache[$Ticker] = @{ Data = $result; LastFetch = [datetime]::Now }
+            return $result
+        }
+        return $null
+    }
+    catch {
+        Write-Verbose "Alpha Vantage API failed: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+# ── Market Data Panel Rendering ───────────────────────────────
+
+function Format-RelativeTime {
+    param([datetime]$Time)
+    $diff = [datetime]::Now - $Time
+    if ($diff.TotalMinutes -lt 1) { return 'just now' }
+    if ($diff.TotalMinutes -lt 60) { return "$([int]$diff.TotalMinutes)m ago" }
+    if ($diff.TotalHours -lt 24) { return "$([int]$diff.TotalHours)h ago" }
+    return $Time.ToString('MMM dd')
+}
+
+function Format-LargeNumber {
+    param([double]$Number)
+    if ($Number -ge 1e12) { return "$([math]::Round($Number / 1e12, 2))T" }
+    if ($Number -ge 1e9) { return "$([math]::Round($Number / 1e9, 2))B" }
+    if ($Number -ge 1e6) { return "$([math]::Round($Number / 1e6, 2))M" }
+    return $Number.ToString('N0')
+}
+
+function Set-ActiveMarketTab {
+    param([string]$TabName)
+    $script:activeMarketTab = $TabName
+    $converter = [System.Windows.Media.BrushConverter]::new()
+
+    # Reset all tab buttons
+    foreach ($btn in @($btnTabNews, $btnTabFx, $btnTabCrypto, $btnTabIndices, $btnTabCommodities, $btnTabStocks)) {
+        if ($btn -and $btn.Visibility -eq 'Visible') {
+            $btn.Background = $converter.ConvertFromString('#16213E')
+            $btn.Foreground = $converter.ConvertFromString('#AAAAAA')
+            $btn.BorderBrush = $converter.ConvertFromString('#0F3460')
+        }
+    }
+
+    # Highlight active tab
+    $activeBtn = switch ($TabName) {
+        'News' { $btnTabNews }
+        'FX' { $btnTabFx }
+        'Crypto' { $btnTabCrypto }
+        'Indices' { $btnTabIndices }
+        'Commodities' { $btnTabCommodities }
+        'Stocks' { $btnTabStocks }
+    }
+    if ($activeBtn) {
+        $activeBtn.Background = $converter.ConvertFromString('#0F3460')
+        $activeBtn.Foreground = $converter.ConvertFromString('#00CC66')
+        $activeBtn.BorderBrush = $converter.ConvertFromString('#00CC66')
+    }
+
+    Update-MarketDataContent
+}
+
+function Update-MarketDataContent {
+    $marketDataContent.Children.Clear()
+    $converter = [System.Windows.Media.BrushConverter]::new()
+
+    switch ($script:activeMarketTab) {
+        'News' { Render-NewsPanel -Converter $converter }
+        'FX' { Render-FxPanel -Converter $converter }
+        'Crypto' { Render-CryptoPanel -Converter $converter }
+        'Indices' { Render-IndicesPanel -Converter $converter }
+        'Commodities' { Render-CommoditiesPanel -Converter $converter }
+        'Stocks' { Render-StocksPanel -Converter $converter }
+    }
+}
+
+function Add-MarketDataRow {
+    param($Converter, [string]$Left, [string]$Right, [string]$RightColor = '#E0E0E0', [string]$LeftColor = '#AAAAAA', [double]$LeftFontSize = 11, [double]$RightFontSize = 12)
+    $grid = New-Object System.Windows.Controls.Grid
+    $col1 = New-Object System.Windows.Controls.ColumnDefinition; $col1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
+    $col2 = New-Object System.Windows.Controls.ColumnDefinition; $col2.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+    $grid.ColumnDefinitions.Add($col1); $grid.ColumnDefinitions.Add($col2)
+    $grid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
+
+    $lblLeft = New-Object System.Windows.Controls.TextBlock
+    $lblLeft.Text = $Left; $lblLeft.FontSize = $LeftFontSize; $lblLeft.Foreground = $Converter.ConvertFromString($LeftColor)
+    $lblLeft.TextTrimming = 'CharacterEllipsis'; $lblLeft.VerticalAlignment = 'Center'
+    [System.Windows.Controls.Grid]::SetColumn($lblLeft, 0)
+    $grid.Children.Add($lblLeft) | Out-Null
+
+    $lblRight = New-Object System.Windows.Controls.TextBlock
+    $lblRight.Text = $Right; $lblRight.FontSize = $RightFontSize; $lblRight.Foreground = $Converter.ConvertFromString($RightColor)
+    $lblRight.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas'); $lblRight.VerticalAlignment = 'Center'
+    $lblRight.HorizontalAlignment = 'Right'
+    [System.Windows.Controls.Grid]::SetColumn($lblRight, 1)
+    $grid.Children.Add($lblRight) | Out-Null
+
+    $marketDataContent.Children.Add($grid) | Out-Null
+}
+
+function Add-MarketSeparator {
+    param($Converter)
+    $sep = New-Object System.Windows.Shapes.Rectangle
+    $sep.Height = 1; $sep.Fill = $Converter.ConvertFromString('#0F3460')
+    $sep.Margin = [System.Windows.Thickness]::new(0, 4, 0, 4)
+    $marketDataContent.Children.Add($sep) | Out-Null
+}
+
+function Render-NewsPanel {
+    param($Converter)
+    $news = Get-FinancialNews
+    if (-not $news) {
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = 'News unavailable — check internet connection'
+        $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
+        $lbl.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
+        $marketDataContent.Children.Add($lbl) | Out-Null
+        return
+    }
+
+    foreach ($item in $news) {
+        $panel = New-Object System.Windows.Controls.StackPanel
+        $panel.Margin = [System.Windows.Thickness]::new(0, 0, 0, 8)
+        $panel.Cursor = [System.Windows.Input.Cursors]::Hand
+
+        $title = New-Object System.Windows.Controls.TextBlock
+        $title.Text = $item.Title
+        $title.FontSize = 11; $title.Foreground = $Converter.ConvertFromString('#E0E0E0')
+        $title.TextWrapping = 'Wrap'; $title.MaxHeight = 36
+        $panel.Children.Add($title) | Out-Null
+
+        $meta = New-Object System.Windows.Controls.TextBlock
+        $timeStr = Format-RelativeTime -Time $item.Published
+        $meta.Text = "$($item.Source) · $timeStr"
+        $meta.FontSize = 9; $meta.Foreground = $Converter.ConvertFromString('#666666')
+        $meta.Margin = [System.Windows.Thickness]::new(0, 2, 0, 0)
+        $panel.Children.Add($meta) | Out-Null
+
+        # Click to open link
+        $url = $item.Link
+        $panel.Tag = $url
+        $panel.Add_MouseLeftButtonDown({
+                param($sender, $e)
+                try { Start-Process $sender.Tag } catch { }
+            })
+
+        $marketDataContent.Children.Add($panel) | Out-Null
+    }
+
+    # Last updated footer
+    Add-MarketSeparator -Converter $Converter
+    $footer = New-Object System.Windows.Controls.TextBlock
+    $footer.Text = "Updated: $(Format-RelativeTime -Time $script:newsCache.LastFetch)"
+    $footer.FontSize = 9; $footer.Foreground = $Converter.ConvertFromString('#555555')
+    $footer.HorizontalAlignment = 'Right'
+    $marketDataContent.Children.Add($footer) | Out-Null
+}
+
+function Render-FxPanel {
+    param($Converter)
+
+    # Base currency selector row
+    $selectorGrid = New-Object System.Windows.Controls.Grid
+    $sc1 = New-Object System.Windows.Controls.ColumnDefinition; $sc1.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+    $sc2 = New-Object System.Windows.Controls.ColumnDefinition; $sc2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
+    $selectorGrid.ColumnDefinitions.Add($sc1); $selectorGrid.ColumnDefinitions.Add($sc2)
+    $selectorGrid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 8)
+
+    $lblBase = New-Object System.Windows.Controls.TextBlock
+    $lblBase.Text = 'Base Currency: '; $lblBase.FontSize = 11; $lblBase.Foreground = $Converter.ConvertFromString('#AAAAAA')
+    $lblBase.VerticalAlignment = 'Center'
+    [System.Windows.Controls.Grid]::SetColumn($lblBase, 0)
+    $selectorGrid.Children.Add($lblBase) | Out-Null
+
+    $cmbFxBase = New-Object System.Windows.Controls.ComboBox
+    $cmbFxBase.Background = $Converter.ConvertFromString('#16213E')
+    $cmbFxBase.Foreground = $Converter.ConvertFromString('#E0E0E0')
+    $cmbFxBase.BorderBrush = $Converter.ConvertFromString('#0F3460')
+    $cmbFxBase.FontSize = 11; $cmbFxBase.Padding = [System.Windows.Thickness]::new(4, 2, 4, 2)
+    $cmbFxBase.HorizontalAlignment = 'Left'; $cmbFxBase.MinWidth = 80
+    $fxCurrencies = @('USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'CNY', 'HKD', 'SGD', 'INR', 'BRL', 'ZAR', 'MXN')
+    foreach ($cur in $fxCurrencies) { $cmbFxBase.Items.Add($cur) | Out-Null }
+    $cmbFxBase.SelectedItem = $script:fxBaseCurrency
+    $cmbFxBase.Add_SelectionChanged({
+            param($sender, $e)
+            $script:fxBaseCurrency = $sender.SelectedItem.ToString()
+            $script:fxCache.Data = $null  # Invalidate cache
+            Update-MarketDataContent
+        })
+    [System.Windows.Controls.Grid]::SetColumn($cmbFxBase, 1)
+    $selectorGrid.Children.Add($cmbFxBase) | Out-Null
+    $marketDataContent.Children.Add($selectorGrid) | Out-Null
+
+    $fx = Get-ForexRates -BaseCurrency $script:fxBaseCurrency
+    if (-not $fx) {
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = 'FX data unavailable — check internet connection'
+        $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
+        $lbl.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
+        $marketDataContent.Children.Add($lbl) | Out-Null
+        return
+    }
+
+    # Header
+    $hdr = New-Object System.Windows.Controls.TextBlock
+    $hdr.Text = "Base: $($fx.Base) | Date: $($fx.Date)"
+    $hdr.FontSize = 10; $hdr.Foreground = $Converter.ConvertFromString('#888888')
+    $hdr.Margin = [System.Windows.Thickness]::new(0, 0, 0, 6)
+    $marketDataContent.Children.Add($hdr) | Out-Null
+
+    foreach ($rate in $fx.Rates) {
+        Add-MarketDataRow -Converter $Converter -Left "$($fx.Base)/$($rate.Currency)" -Right "$($rate.Rate)"
+    }
+
+    Add-MarketSeparator -Converter $Converter
+    $footer = New-Object System.Windows.Controls.TextBlock
+    $footer.Text = "Source: $($fx.Rates[0].Source) | Updated: $(Format-RelativeTime -Time $script:fxCache.LastFetch)"
+    $footer.FontSize = 9; $footer.Foreground = $Converter.ConvertFromString('#555555')
+    $footer.TextWrapping = 'Wrap'
+    $marketDataContent.Children.Add($footer) | Out-Null
+}
+
+function Render-CryptoPanel {
+    param($Converter)
+
+    # Currency selector row
+    $selectorGrid = New-Object System.Windows.Controls.Grid
+    $sc1 = New-Object System.Windows.Controls.ColumnDefinition; $sc1.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+    $sc2 = New-Object System.Windows.Controls.ColumnDefinition; $sc2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
+    $selectorGrid.ColumnDefinitions.Add($sc1); $selectorGrid.ColumnDefinitions.Add($sc2)
+    $selectorGrid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 8)
+
+    $lblCur = New-Object System.Windows.Controls.TextBlock
+    $lblCur.Text = 'Display Currency: '; $lblCur.FontSize = 11; $lblCur.Foreground = $Converter.ConvertFromString('#AAAAAA')
+    $lblCur.VerticalAlignment = 'Center'
+    [System.Windows.Controls.Grid]::SetColumn($lblCur, 0)
+    $selectorGrid.Children.Add($lblCur) | Out-Null
+
+    $cmbCryptoCur = New-Object System.Windows.Controls.ComboBox
+    $cmbCryptoCur.Background = $Converter.ConvertFromString('#16213E')
+    $cmbCryptoCur.Foreground = $Converter.ConvertFromString('#E0E0E0')
+    $cmbCryptoCur.BorderBrush = $Converter.ConvertFromString('#0F3460')
+    $cmbCryptoCur.FontSize = 11; $cmbCryptoCur.Padding = [System.Windows.Thickness]::new(4, 2, 4, 2)
+    $cmbCryptoCur.HorizontalAlignment = 'Left'; $cmbCryptoCur.MinWidth = 80
+    $cryptoCurrencies = @(
+        @{ Display = 'USD ($)'; Value = 'usd' },
+        @{ Display = 'EUR (€)'; Value = 'eur' },
+        @{ Display = 'GBP (£)'; Value = 'gbp' },
+        @{ Display = 'JPY (¥)'; Value = 'jpy' },
+        @{ Display = 'CHF'; Value = 'chf' },
+        @{ Display = 'CAD (C$)'; Value = 'cad' },
+        @{ Display = 'AUD (A$)'; Value = 'aud' },
+        @{ Display = 'CNY (¥)'; Value = 'cny' },
+        @{ Display = 'BTC'; Value = 'btc' }
+    )
+    $selectedIdx = 0
+    for ($i = 0; $i -lt $cryptoCurrencies.Count; $i++) {
+        $cmbCryptoCur.Items.Add($cryptoCurrencies[$i].Display) | Out-Null
+        if ($cryptoCurrencies[$i].Value -eq $script:cryptoCurrency) { $selectedIdx = $i }
+    }
+    $cmbCryptoCur.SelectedIndex = $selectedIdx
+    $cmbCryptoCur.Tag = $cryptoCurrencies
+    $cmbCryptoCur.Add_SelectionChanged({
+            param($sender, $e)
+            $currencies = $sender.Tag
+            $script:cryptoCurrency = $currencies[$sender.SelectedIndex].Value
+            $script:cryptoCache.Data = $null  # Invalidate cache
+            Update-MarketDataContent
+        })
+    [System.Windows.Controls.Grid]::SetColumn($cmbCryptoCur, 1)
+    $selectorGrid.Children.Add($cmbCryptoCur) | Out-Null
+    $marketDataContent.Children.Add($selectorGrid) | Out-Null
+
+    $crypto = Get-CryptoPrices -VsCurrency $script:cryptoCurrency
+    if (-not $crypto) {
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = 'Crypto data unavailable — check internet connection'
+        $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
+        $lbl.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
+        $marketDataContent.Children.Add($lbl) | Out-Null
+        return
+    }
+
+    # Currency symbol for display
+    $curSymbol = switch ($script:cryptoCurrency) {
+        'usd' { '$' }
+        'eur' { [char]0x20AC }
+        'gbp' { [char]0x00A3 }
+        'jpy' { [char]0x00A5 }
+        'cny' { [char]0x00A5 }
+        'cad' { 'C$' }
+        'aud' { 'A$' }
+        'btc' { [char]0x20BF }
+        default { '' }
+    }
+
+    foreach ($coin in $crypto) {
+        $changeColor = if ($coin.Change24h -ge 0) { '#00CC66' } else { '#FF4444' }
+        $arrow = if ($coin.Change24h -ge 0) { [char]0x25B2 } else { [char]0x25BC }
+        $priceStr = if ($coin.Price -ge 1) { "$curSymbol$($coin.Price.ToString('N2'))" } else { "$curSymbol$($coin.Price.ToString('N6'))" }
+
+        $grid = New-Object System.Windows.Controls.Grid
+        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(50, [System.Windows.GridLengthUnitType]::Pixel)
+        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
+        $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+        $grid.ColumnDefinitions.Add($c1); $grid.ColumnDefinitions.Add($c2); $grid.ColumnDefinitions.Add($c3)
+        $grid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
+
+        $lblSym = New-Object System.Windows.Controls.TextBlock
+        $lblSym.Text = $coin.Symbol; $lblSym.FontSize = 11; $lblSym.FontWeight = [System.Windows.FontWeights]::Bold
+        $lblSym.Foreground = $Converter.ConvertFromString('#E0E0E0'); $lblSym.VerticalAlignment = 'Center'
+        [System.Windows.Controls.Grid]::SetColumn($lblSym, 0)
+        $grid.Children.Add($lblSym) | Out-Null
+
+        $lblPrice = New-Object System.Windows.Controls.TextBlock
+        $lblPrice.Text = $priceStr; $lblPrice.FontSize = 11
+        $lblPrice.Foreground = $Converter.ConvertFromString('#E0E0E0')
+        $lblPrice.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas'); $lblPrice.HorizontalAlignment = 'Right'
+        $lblPrice.VerticalAlignment = 'Center'
+        [System.Windows.Controls.Grid]::SetColumn($lblPrice, 1)
+        $grid.Children.Add($lblPrice) | Out-Null
+
+        $lblChange = New-Object System.Windows.Controls.TextBlock
+        $lblChange.Text = " $arrow $($coin.Change24h)%"; $lblChange.FontSize = 10
+        $lblChange.Foreground = $Converter.ConvertFromString($changeColor)
+        $lblChange.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+        $lblChange.VerticalAlignment = 'Center'; $lblChange.Margin = [System.Windows.Thickness]::new(6, 0, 0, 0)
+        [System.Windows.Controls.Grid]::SetColumn($lblChange, 2)
+        $grid.Children.Add($lblChange) | Out-Null
+
+        $marketDataContent.Children.Add($grid) | Out-Null
+    }
+
+    Add-MarketSeparator -Converter $Converter
+    $footer = New-Object System.Windows.Controls.TextBlock
+    $footer.Text = "Source: CoinGecko | Updated: $(Format-RelativeTime -Time $script:cryptoCache.LastFetch)"
+    $footer.FontSize = 9; $footer.Foreground = $Converter.ConvertFromString('#555555')
+    $footer.TextWrapping = 'Wrap'
+    $marketDataContent.Children.Add($footer) | Out-Null
+}
+
+function Render-IndicesPanel {
+    param($Converter)
+    $apiKey = $txtTwelveDataKey.Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($apiKey)) {
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = 'Enter a Twelve Data API key in Settings to view index data.'
+        $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
+        $lbl.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
+        $marketDataContent.Children.Add($lbl) | Out-Null
+        return
+    }
+
+    $indices = Get-StockIndices -ApiKey $apiKey
+    if (-not $indices -or $indices.Count -eq 0) {
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = 'Index data unavailable — may be rate-limited (8 req/min free tier). Try again in a minute.'
+        $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
+        $lbl.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
+        $marketDataContent.Children.Add($lbl) | Out-Null
+        return
+    }
+
+    foreach ($idx in $indices) {
+        $changeColor = if ($idx.Change -ge 0) { '#00CC66' } else { '#FF4444' }
+        $arrow = if ($idx.Change -ge 0) { [char]0x25B2 } else { [char]0x25BC }
+
+        $grid = New-Object System.Windows.Controls.Grid
+        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
+        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+        $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+        $grid.ColumnDefinitions.Add($c1); $grid.ColumnDefinitions.Add($c2); $grid.ColumnDefinitions.Add($c3)
+        $grid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
+
+        $lblName = New-Object System.Windows.Controls.TextBlock
+        $lblName.Text = $idx.Name; $lblName.FontSize = 11
+        $lblName.Foreground = $Converter.ConvertFromString('#E0E0E0'); $lblName.VerticalAlignment = 'Center'
+        [System.Windows.Controls.Grid]::SetColumn($lblName, 0)
+        $grid.Children.Add($lblName) | Out-Null
+
+        $lblPrice = New-Object System.Windows.Controls.TextBlock
+        $lblPrice.Text = $idx.Price.ToString('N2'); $lblPrice.FontSize = 11
+        $lblPrice.Foreground = $Converter.ConvertFromString('#E0E0E0')
+        $lblPrice.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas'); $lblPrice.HorizontalAlignment = 'Right'
+        $lblPrice.VerticalAlignment = 'Center'
+        [System.Windows.Controls.Grid]::SetColumn($lblPrice, 1)
+        $grid.Children.Add($lblPrice) | Out-Null
+
+        $lblChange = New-Object System.Windows.Controls.TextBlock
+        $lblChange.Text = " $arrow $($idx.Change)%"; $lblChange.FontSize = 10
+        $lblChange.Foreground = $Converter.ConvertFromString($changeColor)
+        $lblChange.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+        $lblChange.VerticalAlignment = 'Center'; $lblChange.Margin = [System.Windows.Thickness]::new(6, 0, 0, 0)
+        [System.Windows.Controls.Grid]::SetColumn($lblChange, 2)
+        $grid.Children.Add($lblChange) | Out-Null
+
+        $marketDataContent.Children.Add($grid) | Out-Null
+    }
+
+    Add-MarketSeparator -Converter $Converter
+    $footer = New-Object System.Windows.Controls.TextBlock
+    $footer.Text = "Source: Twelve Data (ETF proxies) | Updated: $(Format-RelativeTime -Time $script:indicesCache.LastFetch)"
+    $footer.FontSize = 9; $footer.Foreground = $Converter.ConvertFromString('#555555')
+    $footer.TextWrapping = 'Wrap'
+    $marketDataContent.Children.Add($footer) | Out-Null
+}
+
+function Render-CommoditiesPanel {
+    param($Converter)
+    $apiKey = $txtTwelveDataKey.Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($apiKey)) {
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = 'Enter a Twelve Data API key in Settings to view commodity data.'
+        $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
+        $lbl.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
+        $marketDataContent.Children.Add($lbl) | Out-Null
+        return
+    }
+
+    $commodities = Get-CommodityPrices -ApiKey $apiKey
+    if (-not $commodities -or $commodities.Count -eq 0) {
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = 'Commodity data unavailable — check API key or try again shortly (rate limit: 8 req/min)'
+        $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
+        $lbl.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
+        $marketDataContent.Children.Add($lbl) | Out-Null
+        return
+    }
+
+    foreach ($cmd in $commodities) {
+        $changeColor = if ($cmd.Change -ge 0) { '#00CC66' } else { '#FF4444' }
+        $arrow = if ($cmd.Change -ge 0) { [char]0x25B2 } else { [char]0x25BC }
+
+        $grid = New-Object System.Windows.Controls.Grid
+        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridLengthUnitType]::Star)
+        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+        $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridLengthUnitType]::Auto)
+        $grid.ColumnDefinitions.Add($c1); $grid.ColumnDefinitions.Add($c2); $grid.ColumnDefinitions.Add($c3)
+        $grid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
+
+        $lblName = New-Object System.Windows.Controls.TextBlock
+        $lblName.Text = $cmd.Name; $lblName.FontSize = 11
+        $lblName.Foreground = $Converter.ConvertFromString('#E0E0E0'); $lblName.VerticalAlignment = 'Center'
+        [System.Windows.Controls.Grid]::SetColumn($lblName, 0)
+        $grid.Children.Add($lblName) | Out-Null
+
+        $lblPrice = New-Object System.Windows.Controls.TextBlock
+        $lblPrice.Text = "`$$($cmd.Price.ToString('N2'))"; $lblPrice.FontSize = 11
+        $lblPrice.Foreground = $Converter.ConvertFromString('#E0E0E0')
+        $lblPrice.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas'); $lblPrice.HorizontalAlignment = 'Right'
+        $lblPrice.VerticalAlignment = 'Center'
+        [System.Windows.Controls.Grid]::SetColumn($lblPrice, 1)
+        $grid.Children.Add($lblPrice) | Out-Null
+
+        $lblChange = New-Object System.Windows.Controls.TextBlock
+        $lblChange.Text = " $arrow $($cmd.Change)%"; $lblChange.FontSize = 10
+        $lblChange.Foreground = $Converter.ConvertFromString($changeColor)
+        $lblChange.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+        $lblChange.VerticalAlignment = 'Center'; $lblChange.Margin = [System.Windows.Thickness]::new(6, 0, 0, 0)
+        [System.Windows.Controls.Grid]::SetColumn($lblChange, 2)
+        $grid.Children.Add($lblChange) | Out-Null
+
+        $marketDataContent.Children.Add($grid) | Out-Null
+    }
+
+    Add-MarketSeparator -Converter $Converter
+    $note = New-Object System.Windows.Controls.TextBlock
+    $note.Text = 'Prices shown are ETF prices that track the underlying commodities.'
+    $note.FontSize = 9; $note.Foreground = $Converter.ConvertFromString('#666666')
+    $note.TextWrapping = 'Wrap'; $note.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
+    $marketDataContent.Children.Add($note) | Out-Null
+
+    $footer = New-Object System.Windows.Controls.TextBlock
+    $footer.Text = "Source: Twelve Data | Updated: $(Format-RelativeTime -Time $script:commoditiesCache.LastFetch)"
+    $footer.FontSize = 9; $footer.Foreground = $Converter.ConvertFromString('#555555')
+    $footer.TextWrapping = 'Wrap'
+    $marketDataContent.Children.Add($footer) | Out-Null
+}
+
+function Render-StocksPanel {
+    param($Converter)
+    $apiKey = $txtAlphaVantageKey.Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($apiKey)) {
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = 'Enter an Alpha Vantage API key in Settings to look up stock quotes.'
+        $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
+        $lbl.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
+        $marketDataContent.Children.Add($lbl) | Out-Null
+        return
+    }
+
+    # Search box
+    $searchPanel = New-Object System.Windows.Controls.StackPanel
+    $searchPanel.Orientation = 'Horizontal'; $searchPanel.Margin = [System.Windows.Thickness]::new(0, 0, 0, 8)
+
+    $txtTicker = New-Object System.Windows.Controls.TextBox
+    $txtTicker.Width = 120; $txtTicker.Background = $Converter.ConvertFromString('#16213E')
+    $txtTicker.Foreground = $Converter.ConvertFromString('#E0E0E0'); $txtTicker.BorderBrush = $Converter.ConvertFromString('#0F3460')
+    $txtTicker.Padding = [System.Windows.Thickness]::new(5, 3, 5, 3); $txtTicker.FontSize = 12
+    $txtTicker.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+    $txtTicker.ToolTip = 'Enter ticker symbol (e.g. AAPL, MSFT)'
+    $searchPanel.Children.Add($txtTicker) | Out-Null
+
+    $btnSearch = New-Object System.Windows.Controls.Button
+    $btnSearch.Content = ' Look Up '; $btnSearch.Background = $Converter.ConvertFromString('#0F3460')
+    $btnSearch.Foreground = $Converter.ConvertFromString('#E0E0E0'); $btnSearch.BorderBrush = $Converter.ConvertFromString('#00CC66')
+    $btnSearch.Padding = [System.Windows.Thickness]::new(8, 3, 8, 3); $btnSearch.Margin = [System.Windows.Thickness]::new(6, 0, 0, 0)
+    $btnSearch.FontSize = 11; $btnSearch.Cursor = [System.Windows.Input.Cursors]::Hand
+    $searchPanel.Children.Add($btnSearch) | Out-Null
+
+    $marketDataContent.Children.Add($searchPanel) | Out-Null
+
+    # Result area
+    $resultPanel = New-Object System.Windows.Controls.StackPanel
+    $resultPanel.Name = 'stockResultPanel'
+    $marketDataContent.Children.Add($resultPanel) | Out-Null
+
+    # Show cached quotes
+    if ($script:stockQuoteCache.Count -gt 0) {
+        foreach ($key in $script:stockQuoteCache.Keys) {
+            $cached = $script:stockQuoteCache[$key]
+            if ($cached.Data) { Render-SingleStockQuote -Quote $cached.Data -Panel $resultPanel -Converter $Converter }
+        }
+    }
+
+    # Search button click
+    $btnSearch.Add_Click({
+            $ticker = $txtTicker.Text.Trim().ToUpper()
+            if ([string]::IsNullOrWhiteSpace($ticker)) { return }
+            $resultPanel.Children.Clear()
+
+            $loading = New-Object System.Windows.Controls.TextBlock
+            $loading.Text = "Looking up $ticker..."; $loading.Foreground = $Converter.ConvertFromString('#888888'); $loading.FontSize = 11
+            $resultPanel.Children.Add($loading) | Out-Null
+
+            $window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action] {
+                    $quote = Get-StockQuote -ApiKey $apiKey -Ticker $ticker
+                    $resultPanel.Children.Clear()
+                    if ($quote) {
+                        Render-SingleStockQuote -Quote $quote -Panel $resultPanel -Converter $Converter
+                    }
+                    else {
+                        $err = New-Object System.Windows.Controls.TextBlock
+                        $err.Text = "No data for '$ticker' — check symbol or API limit (25/day)"
+                        $err.Foreground = $Converter.ConvertFromString('#FF4444'); $err.FontSize = 11; $err.TextWrapping = 'Wrap'
+                        $resultPanel.Children.Add($err) | Out-Null
+                    }
+                }.GetNewClosure())
+        }.GetNewClosure())
+}
+
+function Render-SingleStockQuote {
+    param($Quote, $Panel, $Converter)
+    $changeColor = if ([double]$Quote.Change -ge 0) { '#00CC66' } else { '#FF4444' }
+    $arrow = if ([double]$Quote.Change -ge 0) { [char]0x25B2 } else { [char]0x25BC }
+
+    $border = New-Object System.Windows.Controls.Border
+    $border.Background = $Converter.ConvertFromString('#16213E')
+    $border.CornerRadius = [System.Windows.CornerRadius]::new(4)
+    $border.Padding = [System.Windows.Thickness]::new(8, 6, 8, 6)
+    $border.Margin = [System.Windows.Thickness]::new(0, 0, 0, 6)
+
+    $stack = New-Object System.Windows.Controls.StackPanel
+
+    $header = New-Object System.Windows.Controls.TextBlock
+    $header.Text = "$($Quote.Symbol)  `$$($Quote.Price)  $arrow $($Quote.Change) ($($Quote.ChangePct)%)"
+    $header.FontSize = 12; $header.FontWeight = [System.Windows.FontWeights]::Bold
+    $header.Foreground = $Converter.ConvertFromString($changeColor)
+    $header.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+    $stack.Children.Add($header) | Out-Null
+
+    $details = New-Object System.Windows.Controls.TextBlock
+    $details.Text = "O: $($Quote.Open)  H: $($Quote.High)  L: $($Quote.Low)  Vol: $($Quote.Volume)"
+    $details.FontSize = 10; $details.Foreground = $Converter.ConvertFromString('#888888')
+    $details.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+    $details.Margin = [System.Windows.Thickness]::new(0, 2, 0, 0)
+    $stack.Children.Add($details) | Out-Null
+
+    $border.Child = $stack
+    $Panel.Children.Add($border) | Out-Null
+}
 
 # ── Data Model ────────────────────────────────────────────────
 
@@ -864,10 +1847,12 @@ function Show-ExchangeFlyout {
     if ($script:currentFlyoutCode -eq $ExchangeCode -and $flyoutPanel.Visibility -eq 'Visible') {
         $flyoutPanel.Visibility = 'Collapsed'
         $script:currentFlyoutCode = $null
+        $marketDataPanel.Visibility = 'Visible'
         return
     }
 
     $script:currentFlyoutCode = $ExchangeCode
+    $marketDataPanel.Visibility = 'Collapsed'
     $converter = [System.Windows.Media.BrushConverter]::new()
 
     # Find the exchange row
@@ -1252,11 +2237,58 @@ function Update-AllDisplays {
 
 # ── Event Handlers ────────────────────────────────────────────
 
-# Flyout close button
+# Flyout close button — show market data panel when flyout closes
 $btnCloseFlyout.Add_Click({
         $flyoutPanel.Visibility = 'Collapsed'
         $script:currentFlyoutCode = $null
+        $marketDataPanel.Visibility = 'Visible'
     })
+
+# Market Data tab button handlers
+$btnTabNews.Add_Click({ Set-ActiveMarketTab -TabName 'News' })
+$btnTabFx.Add_Click({ Set-ActiveMarketTab -TabName 'FX' })
+$btnTabCrypto.Add_Click({ Set-ActiveMarketTab -TabName 'Crypto' })
+$btnTabIndices.Add_Click({ Set-ActiveMarketTab -TabName 'Indices' })
+$btnTabCommodities.Add_Click({ Set-ActiveMarketTab -TabName 'Commodities' })
+$btnTabStocks.Add_Click({ Set-ActiveMarketTab -TabName 'Stocks' })
+
+# API key save button
+$btnSaveApiKeys.Add_Click({
+        Save-UserPreferences
+        Update-ApiKeyTabVisibility
+        $txtStatus.Text = 'API keys saved'
+        # Refresh market data content if on an API-dependent tab
+        if ($script:activeMarketTab -in @('Indices', 'Commodities', 'Stocks')) {
+            Update-MarketDataContent
+        }
+    })
+
+# Helper: update tab visibility based on API keys
+function Update-ApiKeyTabVisibility {
+    $converter = [System.Windows.Media.BrushConverter]::new()
+    if (-not [string]::IsNullOrWhiteSpace($txtTwelveDataKey.Text.Trim())) {
+        $btnTabIndices.Visibility = 'Visible'
+        $btnTabCommodities.Visibility = 'Visible'
+        $txtTwelveDataStatus.Text = [char]0x2714  # checkmark
+        $txtTwelveDataStatus.Foreground = $converter.ConvertFromString('#00CC66')
+    }
+    else {
+        $btnTabIndices.Visibility = 'Collapsed'
+        $btnTabCommodities.Visibility = 'Collapsed'
+        $txtTwelveDataStatus.Text = ''
+        if ($script:activeMarketTab -in @('Indices', 'Commodities')) { Set-ActiveMarketTab -TabName 'News' }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($txtAlphaVantageKey.Text.Trim())) {
+        $btnTabStocks.Visibility = 'Visible'
+        $txtAlphaVantageStatus.Text = [char]0x2714
+        $txtAlphaVantageStatus.Foreground = $converter.ConvertFromString('#00CC66')
+    }
+    else {
+        $btnTabStocks.Visibility = 'Collapsed'
+        $txtAlphaVantageStatus.Text = ''
+        if ($script:activeMarketTab -eq 'Stocks') { Set-ActiveMarketTab -TabName 'News' }
+    }
+}
 
 # Select All / Deselect All buttons
 $btnSelectAll.Add_Click({
@@ -1380,7 +2412,17 @@ $window.Add_Loaded({
                 $chkAlwaysOnTop.IsChecked = $true
                 $window.Topmost = $true
             }
+            # Load API keys
+            if ($script:userPrefs.TwelveDataApiKey) {
+                $txtTwelveDataKey.Text = $script:userPrefs.TwelveDataApiKey
+            }
+            if ($script:userPrefs.AlphaVantageApiKey) {
+                $txtAlphaVantageKey.Text = $script:userPrefs.AlphaVantageApiKey
+            }
         }
+
+        # Set up API key tab visibility
+        Update-ApiKeyTabVisibility
 
         # Set last updated from cache
         $cachePath = Join-Path $scriptDir 'exchange-data.json'
@@ -1396,6 +2438,9 @@ $window.Add_Loaded({
 
         # Initial update
         Update-AllDisplays
+
+        # Initialize market data panel with News tab
+        Set-ActiveMarketTab -TabName 'News'
     })
 
 # Window closing — minimize to tray instead of closing (unless force exit)
@@ -1421,20 +2466,37 @@ $window.Add_StateChanged({
         }
     })
 
-# ── Start Timer ───────────────────────────────────────────────
+# ── Start Timers ──────────────────────────────────────────────
 
+# Main 1-second countdown timer
 $timer = New-Object System.Windows.Threading.DispatcherTimer
 $timer.Interval = [TimeSpan]::FromSeconds(1)
 $timer.Add_Tick({ Update-AllDisplays })
 $timer.Start()
 
+# Market data refresh timer (60 seconds)
+$marketDataTimer = New-Object System.Windows.Threading.DispatcherTimer
+$marketDataTimer.Interval = [TimeSpan]::FromSeconds(60)
+$marketDataTimer.Add_Tick({
+        # Only refresh if market data panel is visible and on the Dashboard tab
+        if ($marketDataPanel.Visibility -eq 'Visible') {
+            Update-MarketDataContent
+        }
+    })
+$marketDataTimer.Start()
+
 # ── Show Window ───────────────────────────────────────────────
 
-$app = New-Object System.Windows.Application
+# Reuse existing Application instance if running in the same session
+$app = [System.Windows.Application]::Current
+if (-not $app) {
+    $app = New-Object System.Windows.Application
+}
 $app.Run($window)
 
 # Cleanup
 $timer.Stop()
+$marketDataTimer.Stop()
 if ($script:notifyIcon) {
     $script:notifyIcon.Visible = $false
     $script:notifyIcon.Dispose()

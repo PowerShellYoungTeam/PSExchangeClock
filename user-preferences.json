@@ -10,14 +10,23 @@
     "XTSE",
     "XETR",
     "XASX",
+    "XBOM",
     "XNSE",
+    "XKRX",
+    "XSWX",
+    "XJSE",
     "BVMF",
-    "XSES"
+    "XMEX",
+    "XSES",
+    "XTAI",
+    "XMOS"
   ],
+  "AlphaVantageApiKey": "ACZ7RU0PVVE7J8X6",
+  "TwelveDataApiKey": "6df14b9980804b6680667ff1fdc8e440",
+  "AlwaysOnTop": false,
   "NotifyThresholds": [
     30,
     15,
     5
-  ],
-  "AlwaysOnTop": false
+  ]
 }

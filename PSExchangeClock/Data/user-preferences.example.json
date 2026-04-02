@@ -14,5 +14,8 @@
     "SecretsBackend": "CredentialManager",
     "MapStyle": "NightSatellite",
     "MapProjection": "Flat",
-    "MapOverlays": ["DayNight", "TimeLine"]
+    "MapOverlays": [
+        "DayNight",
+        "TimeLine"
+    ]
 }

@@ -571,10 +571,38 @@ $xaml = @'
                     <!-- World Map Area -->
                     <Border Grid.Row="0" Grid.Column="0" Background="#0D1B2A" CornerRadius="6" Margin="5" BorderBrush="#0F3460" BorderThickness="1">
                         <Grid>
-                            <Canvas x:Name="canvasMap" Background="Transparent" ClipToBounds="True"/>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <!-- Map Toolbar -->
+                            <Border Grid.Row="0" Panel.ZIndex="20" Background="#16213E" CornerRadius="6,6,0,0" Padding="4,2" BorderBrush="#0F3460" BorderThickness="0,0,0,1">
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Map:" Foreground="#888888" FontSize="10" VerticalAlignment="Center" Margin="4,0,4,0"/>
+                                        <ComboBox x:Name="cmbMapStyle" Width="120" FontSize="10" Style="{StaticResource DarkComboBoxStyle}" ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="  View:" Foreground="#888888" FontSize="10" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                                        <ComboBox x:Name="cmbMapProjection" Width="100" FontSize="10" Style="{StaticResource DarkComboBoxStyle}" ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <CheckBox x:Name="chkTerminator" Content="Day/Night" Foreground="#CCCCCC" FontSize="10" VerticalAlignment="Center" Margin="4,0" IsChecked="True"/>
+                                        <CheckBox x:Name="chkTimeLine" Content="Time Line" Foreground="#CCCCCC" FontSize="10" VerticalAlignment="Center" Margin="4,0" IsChecked="True"/>
+                                        <CheckBox x:Name="chkTimeZoneBands" Content="TZ Bands" Foreground="#CCCCCC" FontSize="10" VerticalAlignment="Center" Margin="4,0"/>
+                                        <CheckBox x:Name="chkTradingSessions" Content="Sessions" Foreground="#CCCCCC" FontSize="10" VerticalAlignment="Center" Margin="4,0"/>
+                                        <Rectangle Width="1" Height="16" Fill="#0F3460" Margin="6,0"/>
+                                        <Button x:Name="btnZoomIn" Content=" + " Background="#0F3460" Foreground="#E0E0E0" BorderThickness="0" FontSize="12" FontWeight="Bold" Cursor="Hand" Padding="4,0" Margin="2,0" VerticalAlignment="Center"/>
+                                        <Button x:Name="btnZoomOut" Content=" − " Background="#0F3460" Foreground="#E0E0E0" BorderThickness="0" FontSize="12" FontWeight="Bold" Cursor="Hand" Padding="4,0" Margin="2,0" VerticalAlignment="Center"/>
+                                        <Button x:Name="btnZoomReset" Content=" ↺ " Background="#0F3460" Foreground="#E0E0E0" BorderThickness="0" FontSize="12" Cursor="Hand" Padding="4,0" Margin="2,0" VerticalAlignment="Center" ToolTip="Reset zoom"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <!-- Clip container so zoomed canvas cannot overflow into toolbar -->
+                            <Border Grid.Row="1" ClipToBounds="True">
+                                <Canvas x:Name="canvasMap" Background="Transparent" ClipToBounds="True"/>
+                            </Border>
 
                             <!-- Market Data Panel (shown when no exchange flyout is open) -->
-                            <Border x:Name="marketDataPanel" Background="#CC1A1A2E" BorderBrush="#0F3460" BorderThickness="1" CornerRadius="6"
+                            <Border Grid.Row="1" Panel.ZIndex="10" x:Name="marketDataPanel" Background="#CC1A1A2E" BorderBrush="#0F3460" BorderThickness="1" CornerRadius="6"
                                     Width="300" HorizontalAlignment="Left" VerticalAlignment="Stretch" Margin="5,5,0,5"
                                     Visibility="Visible">
                                 <Grid>
@@ -604,7 +632,7 @@ $xaml = @'
                             </Border>
 
                             <!-- Detail Flyout Panel (hidden by default, LEFT aligned to not cover Far East) -->
-                            <Border x:Name="flyoutPanel" Background="#1A1A2E" BorderBrush="#0F3460" BorderThickness="1" CornerRadius="6"
+                            <Border Grid.Row="1" Panel.ZIndex="10" x:Name="flyoutPanel" Background="#1A1A2E" BorderBrush="#0F3460" BorderThickness="1" CornerRadius="6"
                                     Width="280" HorizontalAlignment="Left" VerticalAlignment="Stretch" Margin="5,5,0,5"
                                     Visibility="Collapsed">
                                 <Grid>
@@ -818,6 +846,17 @@ $txtNextClose = $window.FindName('txtNextClose')
 $btnSelectAll = $window.FindName('btnSelectAll')
 $btnDeselectAll = $window.FindName('btnDeselectAll')
 $chkShowGridLines = $window.FindName('chkShowGridLines')
+
+# Map toolbar controls
+$cmbMapStyle = $window.FindName('cmbMapStyle')
+$cmbMapProjection = $window.FindName('cmbMapProjection')
+$chkTerminator = $window.FindName('chkTerminator')
+$chkTimeLine = $window.FindName('chkTimeLine')
+$chkTimeZoneBands = $window.FindName('chkTimeZoneBands')
+$chkTradingSessions = $window.FindName('chkTradingSessions')
+$btnZoomIn = $window.FindName('btnZoomIn')
+$btnZoomOut = $window.FindName('btnZoomOut')
+$btnZoomReset = $window.FindName('btnZoomReset')
 $flyoutPanel = $window.FindName('flyoutPanel')
 $flyoutTitle = $window.FindName('flyoutTitle')
 $flyoutContent = $window.FindName('flyoutContent')
@@ -873,6 +912,47 @@ $script:fxBaseCurrency = 'USD'
 $script:cryptoCurrency = 'usd'
 $script:commodityBaseCurrency = 'USD'
 $script:secretsBackend = 'CredentialManager'
+
+# ── Map State ─────────────────────────────────────────────────
+
+$script:mapMarkers = @{}
+$script:mapClusters = @{}
+$script:expandedCluster = $null
+$script:mapZoom = 1.0
+$script:mapPanX = 0.0
+$script:mapPanY = 0.0
+$script:mapDragging = $false
+$script:mapDragStart = $null
+$script:mapPanStart = $null
+$script:mapProjection = 'Flat'  # 'Flat' or 'Globe'
+$script:globeCenterLat = 20.0
+$script:globeCenterLon = 0.0
+
+# Populate Map Style ComboBox
+$mapStyleOptions = @(
+    @{ Label = 'Earth at Night'; Value = 'NightSatellite' },
+    @{ Label = 'Blue Marble'; Value = 'BlueMarble' },
+    @{ Label = 'Vector Dark'; Value = 'VectorDark' },
+    @{ Label = 'Minimal'; Value = 'Minimal' }
+)
+foreach ($opt in $mapStyleOptions) {
+    $item = New-Object System.Windows.Controls.ComboBoxItem
+    $item.Content = $opt.Label; $item.Tag = $opt.Value
+    $cmbMapStyle.Items.Add($item) | Out-Null
+}
+$cmbMapStyle.SelectedIndex = 0
+
+# Populate Map Projection ComboBox
+$projOptions = @(
+    @{ Label = 'Flat Map'; Value = 'Flat' },
+    @{ Label = 'Globe'; Value = 'Globe' }
+)
+foreach ($opt in $projOptions) {
+    $item = New-Object System.Windows.Controls.ComboBoxItem
+    $item.Content = $opt.Label; $item.Tag = $opt.Value
+    $cmbMapProjection.Items.Add($item) | Out-Null
+}
+$cmbMapProjection.SelectedIndex = 0
 
 # ── Market Data Cache ─────────────────────────────────────────
 
@@ -2230,10 +2310,409 @@ function Rebuild-WorldClocks {
 
 # ── World Map Drawing ────────────────────────────────────────
 
-$script:mapMarkers = @{}
+function Convert-LatLonToCanvas {
+    param([double]$Lat, [double]$Lon, [double]$Width, [double]$Height)
+    if ($script:mapProjection -eq 'Globe') {
+        return Convert-LatLonToGlobe -Lat $Lat -Lon $Lon -Width $Width -Height $Height
+    }
+    # Equirectangular projection
+    $x = (($Lon + 180) / 360) * $Width
+    $y = ((90 - $Lat) / 180) * $Height
+    return @{ X = $x; Y = $y; Visible = $true }
+}
+
+function Convert-LatLonToGlobe {
+    param([double]$Lat, [double]$Lon, [double]$Width, [double]$Height)
+    $R = [Math]::Min($Width, $Height) / 2 * 0.92
+    $cx = $Width / 2; $cy = $Height / 2
+    $latR = $Lat * [Math]::PI / 180
+    $lonR = $Lon * [Math]::PI / 180
+    $cLatR = $script:globeCenterLat * [Math]::PI / 180
+    $cLonR = $script:globeCenterLon * [Math]::PI / 180
+    $cosC = [Math]::Sin($cLatR) * [Math]::Sin($latR) + [Math]::Cos($cLatR) * [Math]::Cos($latR) * [Math]::Cos($lonR - $cLonR)
+    if ($cosC -lt 0) { return @{ X = -1000; Y = -1000; Visible = $false } }
+    $x = $R * [Math]::Cos($latR) * [Math]::Sin($lonR - $cLonR)
+    $y = $R * ([Math]::Cos($cLatR) * [Math]::Sin($latR) - [Math]::Sin($cLatR) * [Math]::Cos($latR) * [Math]::Cos($lonR - $cLonR))
+    return @{ X = $cx + $x; Y = $cy - $y; Visible = $true }
+}
+
+function Get-SolarTerminator {
+    param([double]$Width, [double]$Height)
+    $now = [DateTime]::UtcNow
+    $dayOfYear = $now.DayOfYear
+    $hour = $now.Hour + $now.Minute / 60.0
+    # Solar declination (approximate)
+    $declination = -23.44 * [Math]::Cos(2 * [Math]::PI / 365 * ($dayOfYear + 10))
+    $declRad = $declination * [Math]::PI / 180
+    # Sub-solar longitude
+    $subSolarLon = -($hour / 24.0 * 360 - 180)
+    if ($subSolarLon -lt -180) { $subSolarLon += 360 }
+    if ($subSolarLon -gt 180) { $subSolarLon -= 360 }
+    $points = [System.Collections.Generic.List[object]]::new()
+    for ($lon = -180; $lon -le 180; $lon += 2) {
+        $lonRad = ($lon - $subSolarLon) * [Math]::PI / 180
+        $latRad = [Math]::Atan(-[Math]::Cos($lonRad) / [Math]::Tan($declRad))
+        $lat = $latRad * 180 / [Math]::PI
+        $pos = Convert-LatLonToCanvas -Lat $lat -Lon $lon -Width $Width -Height $Height
+        if ($pos.Visible) { $points.Add($pos) }
+    }
+    return @{ Points = $points; SubSolarLon = $subSolarLon; Declination = $declination }
+}
+
+function Get-ClusterPriorityColor {
+    param([string[]]$Codes)
+    $priority = @('Open', 'ClosingImminent', 'ClosingSoon', 'PreMarket', 'LunchBreak', 'Holiday', 'Closed')
+    $bestStatus = 'Closed'
+    $bestRank = 99
+    foreach ($code in $Codes) {
+        $row = $script:exchangeRows | Where-Object { $_.Code -eq $code } | Select-Object -First 1
+        if (-not $row) { continue }
+        $exObj = [PSCustomObject]@{
+            TimeZoneId = $row.TimeZoneId; OpenTimeLocal = $row.OpenTime; CloseTimeLocal = $row.CloseTime
+            LunchBreakStart = $row.LunchBreakStart; LunchBreakEnd = $row.LunchBreakEnd; Code = $row.Code
+        }
+        $si = Get-ExchangeStatus -Exchange $exObj
+        $rank = $priority.IndexOf($si.Status)
+        if ($rank -ge 0 -and $rank -lt $bestRank) { $bestRank = $rank; $bestStatus = $si.Status }
+    }
+    return Get-StatusColor -Status $bestStatus
+}
+
+function Add-MapMarker {
+    param([PSCustomObject]$Row, [double]$CanvasWidth, [double]$CanvasHeight, [double]$OffsetX = 0, [double]$OffsetY = 0, [bool]$IsExpanded = $false)
+
+    $pos = Convert-LatLonToCanvas -Lat $Row.Latitude -Lon $Row.Longitude -Width $CanvasWidth -Height $CanvasHeight
+    if (-not $pos.Visible) { return }
+    $px = $pos.X + $OffsetX
+    $py = $pos.Y + $OffsetY
+    $converter = [System.Windows.Media.BrushConverter]::new()
+
+    # Outer glow circle
+    $glow = New-Object System.Windows.Shapes.Ellipse
+    $glow.Width = 18; $glow.Height = 18
+    $glow.Fill = $converter.ConvertFromString('#3300CC66')
+    $glow.IsHitTestVisible = $false
+    [System.Windows.Controls.Canvas]::SetLeft($glow, $px - 9)
+    [System.Windows.Controls.Canvas]::SetTop($glow, $py - 9)
+    $canvasMap.Children.Add($glow) | Out-Null
+
+    # Main marker dot
+    $marker = New-Object System.Windows.Shapes.Ellipse
+    $marker.Width = 10; $marker.Height = 10
+    $statusColor = Get-StatusColor -Status 'Closed'
+    $marker.Fill = $converter.ConvertFromString($statusColor)
+    $marker.Stroke = $converter.ConvertFromString('#FFFFFF')
+    $marker.StrokeThickness = 1
+    $marker.Cursor = [System.Windows.Input.Cursors]::Hand
+    [System.Windows.Controls.Canvas]::SetLeft($marker, $px - 5)
+    [System.Windows.Controls.Canvas]::SetTop($marker, $py - 5)
+
+    # Tooltip
+    $tp = New-Object System.Windows.Controls.ToolTip
+    $tp.Content = "$($Row.DisplayName) ($($Row.Symbol))"
+    [System.Windows.Controls.ToolTipService]::SetToolTip($marker, $tp)
+
+    # Click handler
+    $marker.Tag = $Row.Code
+    $marker.Add_MouseLeftButtonDown({
+            param($sender, $e)
+            Show-ExchangeFlyout -ExchangeCode $sender.Tag
+            $e.Handled = $true
+        })
+
+    $canvasMap.Children.Add($marker) | Out-Null
+
+    # Label — position alternates for expanded cluster members
+    $lblOffsetX = 7; $lblOffsetY = -7
+    if ($IsExpanded -and $OffsetY -gt 0) { $lblOffsetY = 8 }
+    $lbl = New-Object System.Windows.Controls.TextBlock
+    $lbl.Text = $Row.Symbol
+    $lbl.FontSize = 9
+    $lbl.Foreground = $converter.ConvertFromString('#CCCCCC')
+    $lbl.IsHitTestVisible = $false
+    [System.Windows.Controls.Canvas]::SetLeft($lbl, $px + $lblOffsetX)
+    [System.Windows.Controls.Canvas]::SetTop($lbl, $py + $lblOffsetY)
+    $canvasMap.Children.Add($lbl) | Out-Null
+
+    $script:mapMarkers[$Row.Code] = @{ Marker = $marker; Glow = $glow; Tooltip = $tp; Label = $lbl }
+}
+
+function Add-ClusterMarker {
+    param([hashtable]$Cluster, [double]$CanvasWidth, [double]$CanvasHeight)
+    $codes = $Cluster.Codes
+    $centerLat = ($Cluster.Rows | Measure-Object -Property Latitude -Average).Average
+    $centerLon = ($Cluster.Rows | Measure-Object -Property Longitude -Average).Average
+    $pos = Convert-LatLonToCanvas -Lat $centerLat -Lon $centerLon -Width $CanvasWidth -Height $CanvasHeight
+    if (-not $pos.Visible) { return }
+    $converter = [System.Windows.Media.BrushConverter]::new()
+    $clusterColor = Get-ClusterPriorityColor -Codes $codes
+
+    # Outer glow
+    $glow = New-Object System.Windows.Shapes.Ellipse
+    $glow.Width = 26; $glow.Height = 26
+    $glow.Fill = $converter.ConvertFromString(($clusterColor -replace '^#', '#33'))
+    $glow.IsHitTestVisible = $false
+    [System.Windows.Controls.Canvas]::SetLeft($glow, $pos.X - 13)
+    [System.Windows.Controls.Canvas]::SetTop($glow, $pos.Y - 13)
+    $canvasMap.Children.Add($glow) | Out-Null
+
+    # Main circle (larger than single marker)
+    $dot = New-Object System.Windows.Shapes.Ellipse
+    $dot.Width = 18; $dot.Height = 18
+    $dot.Fill = $converter.ConvertFromString($clusterColor)
+    $dot.Stroke = $converter.ConvertFromString('#FFFFFF')
+    $dot.StrokeThickness = 1.5
+    $dot.Cursor = [System.Windows.Input.Cursors]::Hand
+    [System.Windows.Controls.Canvas]::SetLeft($dot, $pos.X - 9)
+    [System.Windows.Controls.Canvas]::SetTop($dot, $pos.Y - 9)
+    $canvasMap.Children.Add($dot) | Out-Null
+
+    # Count badge
+    $badge = New-Object System.Windows.Controls.TextBlock
+    $badge.Text = "$($codes.Count)"
+    $badge.FontSize = 10
+    $badge.FontWeight = [System.Windows.FontWeights]::Bold
+    $badge.Foreground = $converter.ConvertFromString('#FFFFFF')
+    $badge.IsHitTestVisible = $false
+    $badge.TextAlignment = 'Center'
+    [System.Windows.Controls.Canvas]::SetLeft($badge, $pos.X - 4)
+    [System.Windows.Controls.Canvas]::SetTop($badge, $pos.Y - 7)
+    $canvasMap.Children.Add($badge) | Out-Null
+
+    # Cluster label (comma-separated symbols)
+    $symbols = ($Cluster.Rows | ForEach-Object { $_.Symbol }) -join ', '
+    $lbl = New-Object System.Windows.Controls.TextBlock
+    $lbl.Text = $symbols
+    $lbl.FontSize = 9
+    $lbl.Foreground = $converter.ConvertFromString('#CCCCCC')
+    $lbl.IsHitTestVisible = $false
+    [System.Windows.Controls.Canvas]::SetLeft($lbl, $pos.X + 12)
+    [System.Windows.Controls.Canvas]::SetTop($lbl, $pos.Y - 7)
+    $canvasMap.Children.Add($lbl) | Out-Null
+
+    # Tooltip
+    $names = ($Cluster.Rows | ForEach-Object { "$($_.DisplayName) ($($_.Symbol))" }) -join "`n"
+    $tp = New-Object System.Windows.Controls.ToolTip
+    $tp.Content = $names
+    [System.Windows.Controls.ToolTipService]::SetToolTip($dot, $tp)
+
+    # Store cluster id on dot for click handler
+    $clusterKey = ($codes | Sort-Object) -join '|'
+    $dot.Tag = $clusterKey
+    $dot.Add_MouseLeftButtonDown({
+            param($sender, $e)
+            $key = $sender.Tag
+            if ($script:expandedCluster -eq $key) {
+                # Collapse: re-render map
+                $script:expandedCluster = $null
+                Initialize-WorldMap
+            } else {
+                # Expand this cluster
+                $script:expandedCluster = $key
+                Initialize-WorldMap
+            }
+            $e.Handled = $true
+        })
+
+    # Store cluster elements for dynamic color updates
+    $script:mapClusters[$clusterKey] = @{ Dot = $dot; Glow = $glow; Badge = $badge; Label = $lbl; Tooltip = $tp; Codes = $codes }
+}
+
+function Draw-SolarTerminator {
+    param([double]$Width, [double]$Height)
+    $converter = [System.Windows.Media.BrushConverter]::new()
+    $solar = Get-SolarTerminator -Width $Width -Height $Height
+    if ($solar.Points.Count -lt 2) { return }
+
+    # Build the night polygon: terminator curve + top or bottom edge
+    $poly = New-Object System.Windows.Shapes.Polygon
+    $poly.Fill = $converter.ConvertFromString('#40000000')
+    $poly.IsHitTestVisible = $false
+    $pointCollection = New-Object System.Windows.Media.PointCollection
+
+    # Determine if sun is in northern or southern hemisphere
+    $sunNorth = $solar.Declination -gt 0
+
+    if ($sunNorth) {
+        # Night is toward the south of the terminator — close polygon at bottom
+        foreach ($pt in $solar.Points) {
+            $pointCollection.Add([System.Windows.Point]::new($pt.X, $pt.Y))
+        }
+        # Close along bottom edge
+        $pointCollection.Add([System.Windows.Point]::new($Width, $Height))
+        $pointCollection.Add([System.Windows.Point]::new(0, $Height))
+    } else {
+        # Night is toward the north of the terminator — close polygon at top
+        foreach ($pt in $solar.Points) {
+            $pointCollection.Add([System.Windows.Point]::new($pt.X, $pt.Y))
+        }
+        $pointCollection.Add([System.Windows.Point]::new($Width, 0))
+        $pointCollection.Add([System.Windows.Point]::new(0, 0))
+    }
+    $poly.Points = $pointCollection
+    $canvasMap.Children.Add($poly) | Out-Null
+}
+
+function Draw-CurrentTimeLine {
+    param([double]$Width, [double]$Height)
+    $converter = [System.Windows.Media.BrushConverter]::new()
+    $now = [DateTime]::UtcNow
+    $hour = $now.Hour + $now.Minute / 60.0
+    $currentLon = ($hour / 24.0 * 360) - 180
+    if ($script:mapProjection -eq 'Globe') {
+        $p1 = Convert-LatLonToGlobe -Lat 80 -Lon $currentLon -Width $Width -Height $Height
+        $p2 = Convert-LatLonToGlobe -Lat -80 -Lon $currentLon -Width $Width -Height $Height
+        if (-not $p1.Visible -or -not $p2.Visible) { return }
+        $line = New-Object System.Windows.Shapes.Line
+        $line.X1 = $p1.X; $line.Y1 = $p1.Y; $line.X2 = $p2.X; $line.Y2 = $p2.Y
+    } else {
+        $x = (($currentLon + 180) / 360) * $Width
+        $line = New-Object System.Windows.Shapes.Line
+        $line.X1 = $x; $line.X2 = $x; $line.Y1 = 0; $line.Y2 = $Height
+    }
+    $line.Stroke = $converter.ConvertFromString('#CCFF6600')
+    $line.StrokeThickness = 1.5
+    $da = New-Object System.Windows.Media.DoubleCollection; $da.Add(6.0); $da.Add(3.0)
+    $line.StrokeDashArray = $da
+    $line.IsHitTestVisible = $false
+    $canvasMap.Children.Add($line) | Out-Null
+    # Label
+    $lbl = New-Object System.Windows.Controls.TextBlock
+    $lbl.Text = $now.ToString('HH:mm') + ' UTC'
+    $lbl.FontSize = 8
+    $lbl.Foreground = $converter.ConvertFromString('#FF6600')
+    $lbl.IsHitTestVisible = $false
+    if ($script:mapProjection -eq 'Flat') {
+        $xPos = (($currentLon + 180) / 360) * $Width
+        [System.Windows.Controls.Canvas]::SetLeft($lbl, $xPos + 3)
+        [System.Windows.Controls.Canvas]::SetTop($lbl, 2)
+    } else {
+        [System.Windows.Controls.Canvas]::SetLeft($lbl, $p1.X + 3)
+        [System.Windows.Controls.Canvas]::SetTop($lbl, $p1.Y)
+    }
+    $canvasMap.Children.Add($lbl) | Out-Null
+}
+
+function Draw-TimeZoneBands {
+    param([double]$Width, [double]$Height)
+    $converter = [System.Windows.Media.BrushConverter]::new()
+    $bandColors = @('#10FF6600', '#100066FF')
+    for ($utcOffset = -12; $utcOffset -le 12; $utcOffset++) {
+        $lonLeft = $utcOffset * 15 - 7.5
+        $lonRight = $utcOffset * 15 + 7.5
+        if ($script:mapProjection -eq 'Globe') { continue } # Skip in globe mode
+        $xLeft = (($lonLeft + 180) / 360) * $Width
+        $xRight = (($lonRight + 180) / 360) * $Width
+        $bandWidth = $xRight - $xLeft
+        if ($bandWidth -le 0) { continue }
+        $colorIdx = if ($utcOffset % 2 -eq 0) { 0 } else { 1 }
+        $rect = New-Object System.Windows.Shapes.Rectangle
+        $rect.Width = $bandWidth; $rect.Height = $Height
+        $rect.Fill = $converter.ConvertFromString($bandColors[$colorIdx])
+        $rect.IsHitTestVisible = $false
+        [System.Windows.Controls.Canvas]::SetLeft($rect, $xLeft)
+        [System.Windows.Controls.Canvas]::SetTop($rect, 0)
+        $canvasMap.Children.Add($rect) | Out-Null
+        # UTC offset label at top
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = if ($utcOffset -ge 0) { "+$utcOffset" } else { "$utcOffset" }
+        $lbl.FontSize = 7
+        $lbl.Foreground = $converter.ConvertFromString('#55FFFFFF')
+        $lbl.IsHitTestVisible = $false
+        [System.Windows.Controls.Canvas]::SetLeft($lbl, $xLeft + 2)
+        [System.Windows.Controls.Canvas]::SetTop($lbl, 1)
+        $canvasMap.Children.Add($lbl) | Out-Null
+    }
+}
+
+function Draw-TradingSessions {
+    param([double]$Width, [double]$Height)
+    if ($script:mapProjection -eq 'Globe') { return }
+    $converter = [System.Windows.Media.BrushConverter]::new()
+    $now = [DateTime]::UtcNow
+    $sessions = @(
+        @{ Name = 'Asia'; StartUTC = 0; EndUTC = 9; Color = '#12FF4444' },
+        @{ Name = 'Europe'; StartUTC = 7; EndUTC = 16; Color = '#124488FF' },
+        @{ Name = 'Americas'; StartUTC = 13; EndUTC = 21; Color = '#1200CC66' }
+    )
+    foreach ($s in $sessions) {
+        $currentHour = $now.Hour + $now.Minute / 60.0
+        $active = ($currentHour -ge $s.StartUTC -and $currentHour -lt $s.EndUTC)
+        $alpha = if ($active) { '25' } else { '10' }
+        $color = $s.Color -replace '^#..', "#$alpha"
+        $lonLeft = ($s.StartUTC / 24.0 * 360) - 180
+        $lonRight = ($s.EndUTC / 24.0 * 360) - 180
+        $xLeft = (($lonLeft + 180) / 360) * $Width
+        $xRight = (($lonRight + 180) / 360) * $Width
+        if ($xRight -le $xLeft) { $xRight = $Width }
+        $rect = New-Object System.Windows.Shapes.Rectangle
+        $rect.Width = $xRight - $xLeft; $rect.Height = $Height
+        $rect.Fill = $converter.ConvertFromString($color)
+        $rect.IsHitTestVisible = $false
+        [System.Windows.Controls.Canvas]::SetLeft($rect, $xLeft)
+        [System.Windows.Controls.Canvas]::SetTop($rect, 0)
+        $canvasMap.Children.Add($rect) | Out-Null
+        # Session label
+        $lbl = New-Object System.Windows.Controls.TextBlock
+        $lbl.Text = $s.Name + $(if ($active) { ' ●' } else { '' })
+        $lbl.FontSize = 9
+        $lbl.Foreground = $converter.ConvertFromString($(if ($active) { '#88FFFFFF' } else { '#44FFFFFF' }))
+        $lbl.IsHitTestVisible = $false
+        [System.Windows.Controls.Canvas]::SetLeft($lbl, $xLeft + 4)
+        [System.Windows.Controls.Canvas]::SetTop($lbl, $Height - 16)
+        $canvasMap.Children.Add($lbl) | Out-Null
+    }
+}
+
+function Draw-GlobeOutline {
+    param([double]$Width, [double]$Height)
+    $converter = [System.Windows.Media.BrushConverter]::new()
+    $R = [Math]::Min($Width, $Height) / 2 * 0.92
+    $cx = $Width / 2; $cy = $Height / 2
+    # Globe circle
+    $circle = New-Object System.Windows.Shapes.Ellipse
+    $circle.Width = $R * 2; $circle.Height = $R * 2
+    $circle.Stroke = $converter.ConvertFromString('#333355')
+    $circle.StrokeThickness = 1
+    $circle.Fill = $converter.ConvertFromString('#0D1B2A')
+    $circle.IsHitTestVisible = $false
+    [System.Windows.Controls.Canvas]::SetLeft($circle, $cx - $R)
+    [System.Windows.Controls.Canvas]::SetTop($circle, $cy - $R)
+    $canvasMap.Children.Add($circle) | Out-Null
+    # Graticule lines
+    $gratBrush = $converter.ConvertFromString('#1AFFFFFF')
+    # Latitude circles
+    for ($lat = -60; $lat -le 60; $lat += 30) {
+        $polyLine = New-Object System.Windows.Shapes.Polyline
+        $polyLine.Stroke = $gratBrush; $polyLine.StrokeThickness = 0.5
+        $polyLine.IsHitTestVisible = $false
+        $pts = New-Object System.Windows.Media.PointCollection
+        for ($lon = -180; $lon -le 180; $lon += 5) {
+            $p = Convert-LatLonToGlobe -Lat $lat -Lon $lon -Width $Width -Height $Height
+            if ($p.Visible) { $pts.Add([System.Windows.Point]::new($p.X, $p.Y)) }
+        }
+        $polyLine.Points = $pts
+        $canvasMap.Children.Add($polyLine) | Out-Null
+    }
+    # Longitude arcs
+    for ($lon = -180; $lon -lt 180; $lon += 30) {
+        $polyLine = New-Object System.Windows.Shapes.Polyline
+        $polyLine.Stroke = $gratBrush; $polyLine.StrokeThickness = 0.5
+        $polyLine.IsHitTestVisible = $false
+        $pts = New-Object System.Windows.Media.PointCollection
+        for ($lat = -90; $lat -le 90; $lat += 5) {
+            $p = Convert-LatLonToGlobe -Lat $lat -Lon $lon -Width $Width -Height $Height
+            if ($p.Visible) { $pts.Add([System.Windows.Point]::new($p.X, $p.Y)) }
+        }
+        $polyLine.Points = $pts
+        $canvasMap.Children.Add($polyLine) | Out-Null
+    }
+}
 
 function Initialize-WorldMap {
     $canvasMap.Children.Clear()
+    $script:mapMarkers = @{}
+    $script:mapClusters = @{}
 
     $converter = [System.Windows.Media.BrushConverter]::new()
     $w = $canvasMap.ActualWidth
@@ -2241,93 +2720,218 @@ function Initialize-WorldMap {
 
     if ($w -lt 50 -or $h -lt 50) { return }
 
-    # Try to use NASA Earth at Night image
-    $useImage = $false
-    if (Test-Path $mapImagePath) {
-        try {
-            $uri = New-Object System.Uri($mapImagePath, [System.UriKind]::Absolute)
-            $bmp = New-Object System.Windows.Media.Imaging.BitmapImage
-            $bmp.BeginInit()
-            $bmp.UriSource = $uri
-            $bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
-            $bmp.EndInit()
-
-            $img = New-Object System.Windows.Controls.Image
-            $img.Source = $bmp
-            $img.Width = $w
-            $img.Height = $h
-            $img.Stretch = [System.Windows.Media.Stretch]::Fill
-            $img.IsHitTestVisible = $false
-            [System.Windows.Controls.Canvas]::SetLeft($img, 0)
-            [System.Windows.Controls.Canvas]::SetTop($img, 0)
-            $canvasMap.Children.Add($img) | Out-Null
-            $useImage = $true
-        }
-        catch {
-            Write-Verbose "Failed to load map image, using polygon fallback: $($_.Exception.Message)"
-        }
+    # Determine map style from ComboBox
+    $selectedStyle = 'NightSatellite'
+    if ($cmbMapStyle.SelectedItem -and $cmbMapStyle.SelectedItem.Tag) {
+        $selectedStyle = $cmbMapStyle.SelectedItem.Tag
     }
 
-    if (-not $useImage) {
-        # Ocean background
+    # Globe mode: draw globe background and graticule
+    if ($script:mapProjection -eq 'Globe') {
         $mapBg = New-Object System.Windows.Shapes.Rectangle
         $mapBg.Width = $w; $mapBg.Height = $h
-        $mapBg.Fill = $converter.ConvertFromString('#0D1B2A')
+        $mapBg.Fill = $converter.ConvertFromString('#0A0A1A')
+        $mapBg.IsHitTestVisible = $false
         $canvasMap.Children.Add($mapBg) | Out-Null
-    }
-
-    # Grid lines (optional, controlled by checkbox)
-    $showGrid = (-not $useImage) -or ($chkShowGridLines -and $chkShowGridLines.IsChecked)
-    if ($showGrid) {
-        $gridBrush = $converter.ConvertFromString($(if ($useImage) { '#33FFFFFF' } else { '#152238' }))
-        for ($i = 1; $i -lt 6; $i++) {
-            $line = New-Object System.Windows.Shapes.Line
-            $line.X1 = 0; $line.X2 = $w; $line.Y1 = ($h / 6) * $i; $line.Y2 = $line.Y1
-            $line.Stroke = $gridBrush; $line.StrokeThickness = 0.5
-            $canvasMap.Children.Add($line) | Out-Null
-        }
-        for ($i = 1; $i -lt 12; $i++) {
-            $line = New-Object System.Windows.Shapes.Line
-            $line.X1 = ($w / 12) * $i; $line.X2 = $line.X1; $line.Y1 = 0; $line.Y2 = $h
-            $line.Stroke = $gridBrush; $line.StrokeThickness = 0.5
-            $canvasMap.Children.Add($line) | Out-Null
-        }
-
-        # Equator
-        $eqLine = New-Object System.Windows.Shapes.Line
-        $eqLine.X1 = 0; $eqLine.X2 = $w; $eqLine.Y1 = $h / 2; $eqLine.Y2 = $h / 2
-        $eqLine.Stroke = $converter.ConvertFromString($(if ($useImage) { '#44FFFFFF' } else { '#1E3A5F' })); $eqLine.StrokeThickness = 1
-        $da = New-Object System.Windows.Media.DoubleCollection; $da.Add(4.0); $da.Add(4.0)
-        $eqLine.StrokeDashArray = $da
-        $canvasMap.Children.Add($eqLine) | Out-Null
-    }
-
-    # ── Draw continent outlines (only when no image) ──
-    if (-not $useImage) {
-        $landFill = $converter.ConvertFromString('#1B3A2A')
-        $landStroke = $converter.ConvertFromString('#2D6B45')
-
-        # Helper: lat/lon pairs → WPF Polygon on canvas
-        function Add-ContinentPoly {
-            param([double[][]]$Coords)
-            $poly = New-Object System.Windows.Shapes.Polygon
-            $poly.Fill = $landFill
-            $poly.Stroke = $landStroke
-            $poly.StrokeThickness = 1
-            $poly.Opacity = 0.85
-            $poly.IsHitTestVisible = $false
-            $points = New-Object System.Windows.Media.PointCollection
-            foreach ($c in $Coords) {
-                $px = (($c[1] + 180) / 360) * $w
-                $py = ((90 - $c[0]) / 180) * $h
-                $points.Add([System.Windows.Point]::new($px, $py))
+        Draw-GlobeOutline -Width $w -Height $h
+        # Draw continent polygons on globe
+        Draw-GlobeContinents -Width $w -Height $h
+    } else {
+        # Flat map backgrounds
+        $useImage = $false
+        $imageToLoad = $null
+        switch ($selectedStyle) {
+            'NightSatellite' { $imageToLoad = $mapImagePath }
+            'BlueMarble' {
+                $bmPath = Join-Path $appDataDir 'bluemarble.jpg'
+                if (-not (Test-Path $bmPath)) {
+                    try {
+                        $bmUrl = 'https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg'
+                        Invoke-WebRequest -Uri $bmUrl -OutFile $bmPath -UseBasicParsing -TimeoutSec 60
+                    } catch { Write-Verbose "Blue Marble download failed: $_" }
+                }
+                if (Test-Path $bmPath) { $imageToLoad = $bmPath }
             }
-            $poly.Points = $points
-            $canvasMap.Children.Add($poly) | Out-Null
+        }
+        if ($imageToLoad -and (Test-Path $imageToLoad) -and $selectedStyle -ne 'VectorDark' -and $selectedStyle -ne 'Minimal') {
+            try {
+                $uri = New-Object System.Uri($imageToLoad, [System.UriKind]::Absolute)
+                $bmp = New-Object System.Windows.Media.Imaging.BitmapImage
+                $bmp.BeginInit()
+                $bmp.UriSource = $uri
+                $bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+                $bmp.EndInit()
+                $img = New-Object System.Windows.Controls.Image
+                $img.Source = $bmp; $img.Width = $w; $img.Height = $h
+                $img.Stretch = [System.Windows.Media.Stretch]::Fill
+                $img.IsHitTestVisible = $false
+                [System.Windows.Controls.Canvas]::SetLeft($img, 0)
+                [System.Windows.Controls.Canvas]::SetTop($img, 0)
+                $canvasMap.Children.Add($img) | Out-Null
+                $useImage = $true
+            } catch { Write-Verbose "Failed to load map image: $($_.Exception.Message)" }
         }
 
-        # North America
-        Add-ContinentPoly -Coords @(
+        if (-not $useImage) {
+            $bgColor = if ($selectedStyle -eq 'Minimal') { '#111122' } else { '#0D1B2A' }
+            $mapBg = New-Object System.Windows.Shapes.Rectangle
+            $mapBg.Width = $w; $mapBg.Height = $h
+            $mapBg.Fill = $converter.ConvertFromString($bgColor)
+            $canvasMap.Children.Add($mapBg) | Out-Null
+        }
+
+        # Grid lines
+        $showGrid = (-not $useImage) -or ($chkShowGridLines -and $chkShowGridLines.IsChecked)
+        if ($showGrid) {
+            $gridBrush = $converter.ConvertFromString($(if ($useImage) { '#33FFFFFF' } else { '#152238' }))
+            for ($i = 1; $i -lt 6; $i++) {
+                $line = New-Object System.Windows.Shapes.Line
+                $line.X1 = 0; $line.X2 = $w; $line.Y1 = ($h / 6) * $i; $line.Y2 = $line.Y1
+                $line.Stroke = $gridBrush; $line.StrokeThickness = 0.5
+                $line.IsHitTestVisible = $false
+                $canvasMap.Children.Add($line) | Out-Null
+            }
+            for ($i = 1; $i -lt 12; $i++) {
+                $line = New-Object System.Windows.Shapes.Line
+                $line.X1 = ($w / 12) * $i; $line.X2 = $line.X1; $line.Y1 = 0; $line.Y2 = $h
+                $line.Stroke = $gridBrush; $line.StrokeThickness = 0.5
+                $line.IsHitTestVisible = $false
+                $canvasMap.Children.Add($line) | Out-Null
+            }
+            $eqLine = New-Object System.Windows.Shapes.Line
+            $eqLine.X1 = 0; $eqLine.X2 = $w; $eqLine.Y1 = $h / 2; $eqLine.Y2 = $h / 2
+            $eqLine.Stroke = $converter.ConvertFromString($(if ($useImage) { '#44FFFFFF' } else { '#1E3A5F' }))
+            $eqLine.StrokeThickness = 1; $eqLine.IsHitTestVisible = $false
+            $da = New-Object System.Windows.Media.DoubleCollection; $da.Add(4.0); $da.Add(4.0)
+            $eqLine.StrokeDashArray = $da
+            $canvasMap.Children.Add($eqLine) | Out-Null
+        }
+
+        # Draw continent outlines (when no satellite image)
+        if (-not $useImage) {
+            $fillColor = switch ($selectedStyle) {
+                'Minimal' { '#1A1A33' }
+                default { '#1B3A2A' }
+            }
+            $strokeColor = switch ($selectedStyle) {
+                'Minimal' { '#333366' }
+                default { '#2D6B45' }
+            }
+            $landFill = $converter.ConvertFromString($fillColor)
+            $landStroke = $converter.ConvertFromString($strokeColor)
+            Draw-FlatContinents -Width $w -Height $h -Fill $landFill -Stroke $landStroke
+        }
+    } # end Flat vs Globe
+
+    # ── Overlays (before markers) ──
+
+    # Timezone bands
+    if ($chkTimeZoneBands -and $chkTimeZoneBands.IsChecked) {
+        Draw-TimeZoneBands -Width $w -Height $h
+    }
+
+    # Trading sessions
+    if ($chkTradingSessions -and $chkTradingSessions.IsChecked) {
+        Draw-TradingSessions -Width $w -Height $h
+    }
+
+    # Solar terminator (day/night overlay)
+    if ($chkTerminator -and $chkTerminator.IsChecked -and $script:mapProjection -eq 'Flat') {
+        Draw-SolarTerminator -Width $w -Height $h
+    }
+
+    # Current time line
+    if ($chkTimeLine -and $chkTimeLine.IsChecked) {
+        Draw-CurrentTimeLine -Width $w -Height $h
+    }
+
+    # ── Place exchange markers with clustering ──
+
+    $activeRows = @($script:exchangeRows | Where-Object { $_.IsActive })
+    $clusterThreshold = 20  # pixel distance to cluster
+
+    # Compute pixel positions for all active rows
+    $positions = @{}
+    foreach ($row in $activeRows) {
+        $pos = Convert-LatLonToCanvas -Lat $row.Latitude -Lon $row.Longitude -Width $w -Height $h
+        $positions[$row.Code] = @{ Row = $row; X = $pos.X; Y = $pos.Y; Visible = $pos.Visible; Clustered = $false }
+    }
+
+    # Find clusters (groups of markers within threshold distance)
+    $clusters = [System.Collections.Generic.List[hashtable]]::new()
+    $clustered = @{}
+    foreach ($code1 in $positions.Keys) {
+        if ($clustered.ContainsKey($code1)) { continue }
+        $p1 = $positions[$code1]
+        if (-not $p1.Visible) { continue }
+        $group = @($code1)
+        foreach ($code2 in $positions.Keys) {
+            if ($code2 -eq $code1 -or $clustered.ContainsKey($code2)) { continue }
+            $p2 = $positions[$code2]
+            if (-not $p2.Visible) { continue }
+            $dist = [Math]::Sqrt(($p1.X - $p2.X) * ($p1.X - $p2.X) + ($p1.Y - $p2.Y) * ($p1.Y - $p2.Y))
+            if ($dist -lt $clusterThreshold) {
+                $group += $code2
+                $clustered[$code2] = $true
+            }
+        }
+        if ($group.Count -gt 1) {
+            $clustered[$code1] = $true
+            $clusterRows = @($group | ForEach-Object { $positions[$_].Row })
+            $clusters.Add(@{ Codes = $group; Rows = $clusterRows })
+        }
+    }
+
+    # Render non-clustered markers
+    foreach ($code in $positions.Keys) {
+        if ($clustered.ContainsKey($code)) { continue }
+        $p = $positions[$code]
+        if (-not $p.Visible) { continue }
+        Add-MapMarker -Row $p.Row -CanvasWidth $w -CanvasHeight $h
+    }
+
+    # Render clusters
+    foreach ($cluster in $clusters) {
+        $clusterKey = ($cluster.Codes | Sort-Object) -join '|'
+        if ($script:expandedCluster -eq $clusterKey) {
+            # Expanded: show individual markers in a fan layout
+            $count = $cluster.Codes.Count
+            $fanRadius = 25
+            for ($i = 0; $i -lt $count; $i++) {
+                $angle = (2 * [Math]::PI / $count) * $i - [Math]::PI / 2
+                $ox = [Math]::Cos($angle) * $fanRadius
+                $oy = [Math]::Sin($angle) * $fanRadius
+                $row = $cluster.Rows[$i]
+                Add-MapMarker -Row $row -CanvasWidth $w -CanvasHeight $h -OffsetX $ox -OffsetY $oy -IsExpanded $true
+            }
+            # Draw a subtle connecting line from center to each expanded marker
+            $centerLat = ($cluster.Rows | Measure-Object -Property Latitude -Average).Average
+            $centerLon = ($cluster.Rows | Measure-Object -Property Longitude -Average).Average
+            $centerPos = Convert-LatLonToCanvas -Lat $centerLat -Lon $centerLon -Width $w -Height $h
+            if ($centerPos.Visible) {
+                for ($i = 0; $i -lt $count; $i++) {
+                    $angle = (2 * [Math]::PI / $count) * $i - [Math]::PI / 2
+                    $ox = [Math]::Cos($angle) * $fanRadius
+                    $oy = [Math]::Sin($angle) * $fanRadius
+                    $cLine = New-Object System.Windows.Shapes.Line
+                    $cLine.X1 = $centerPos.X; $cLine.Y1 = $centerPos.Y
+                    $cLine.X2 = $centerPos.X + $ox; $cLine.Y2 = $centerPos.Y + $oy
+                    $cLine.Stroke = $converter.ConvertFromString('#44FFFFFF')
+                    $cLine.StrokeThickness = 0.5; $cLine.IsHitTestVisible = $false
+                    $canvasMap.Children.Add($cLine) | Out-Null
+                }
+            }
+        } else {
+            # Collapsed: show cluster dot
+            Add-ClusterMarker -Cluster $cluster -CanvasWidth $w -CanvasHeight $h
+        }
+    }
+}
+
+# Continent polygon data extracted to a helper for reuse in flat + globe modes
+function Get-ContinentData {
+    return @(
+        @{ Name = 'NorthAmerica'; Coords = @(
             @(49, -125), @(55, -130), @(60, -140), @(64, -140), @(68, -165), @(72, -160), @(72, -140),
             @(70, -130), @(75, -120), @(78, -100), @(78, -75), @(75, -60), @(70, -55), @(65, -60),
             @(60, -65), @(55, -60), @(52, -56), @(47, -53), @(45, -60), @(43, -66), @(42, -70),
@@ -2338,10 +2942,8 @@ function Initialize-WorldMap {
             @(43, -70), @(45, -67), @(47, -68), @(48, -65), @(49, -67), @(48, -69), @(46, -72),
             @(46, -76), @(44, -79), @(42, -83), @(43, -87), @(45, -85), @(46, -84), @(48, -88),
             @(49, -95), @(49, -105), @(49, -115), @(49, -125)
-        )
-
-        # South America
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'SouthAmerica'; Coords = @(
             @(12, -72), @(10, -74), @(8, -77), @(5, -77), @(2, -80), @(-2, -80), @(-5, -81),
             @(-6, -77), @(-4, -70), @(-2, -50), @(-3, -42), @(-5, -35), @(-8, -35), @(-13, -39),
             @(-18, -40), @(-23, -42), @(-28, -49), @(-33, -52), @(-38, -57), @(-42, -62),
@@ -2349,10 +2951,8 @@ function Initialize-WorldMap {
             @(-50, -75), @(-46, -76), @(-42, -73), @(-38, -73), @(-35, -72), @(-30, -71),
             @(-27, -70), @(-22, -70), @(-18, -70), @(-15, -75), @(-10, -78), @(-5, -80),
             @(-2, -80), @(2, -78), @(5, -77), @(8, -72), @(10, -72), @(12, -72)
-        )
-
-        # Europe
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'Europe'; Coords = @(
             @(36, -6), @(37, -9), @(39, -9), @(42, -9), @(43, -8), @(44, -2), @(46, -2),
             @(47, 2), @(49, 0), @(51, 2), @(53, 5), @(54, 8), @(56, 8), @(55, 12), @(57, 10),
             @(58, 12), @(60, 11), @(63, 10), @(65, 12), @(68, 15), @(70, 20), @(71, 26),
@@ -2361,10 +2961,8 @@ function Initialize-WorldMap {
             @(45, 14), @(44, 13), @(42, 15), @(40, 18), @(38, 24), @(36, 28), @(35, 25),
             @(38, 20), @(39, 20), @(41, 18), @(40, 15), @(38, 13), @(37, 15), @(36, 14),
             @(36, 12), @(38, 10), @(39, 3), @(38, 0), @(37, -2), @(36, -5), @(36, -6)
-        )
-
-        # Africa
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'Africa'; Coords = @(
             @(37, -6), @(36, -5), @(36, 0), @(35, 10), @(33, 10), @(30, 10), @(32, 32),
             @(30, 33), @(22, 36), @(15, 42), @(12, 44), @(12, 50), @(5, 42), @(0, 42),
             @(-5, 39), @(-10, 40), @(-15, 40), @(-18, 36), @(-22, 35), @(-25, 33),
@@ -2372,10 +2970,8 @@ function Initialize-WorldMap {
             @(-12, 14), @(-6, 12), @(0, 10), @(4, 10), @(5, 1), @(4, -2), @(5, -5),
             @(4, -7), @(5, -10), @(10, -15), @(15, -17), @(20, -17), @(22, -16),
             @(25, -14), @(28, -10), @(30, -10), @(32, -5), @(35, -2), @(37, -6)
-        )
-
-        # Asia (simplified main body)
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'Asia'; Coords = @(
             @(70, 28), @(72, 40), @(73, 55), @(75, 70), @(77, 100), @(75, 110),
             @(73, 140), @(70, 170), @(67, 170), @(65, 165), @(62, 160), @(60, 150),
             @(57, 140), @(55, 135), @(52, 140), @(48, 135), @(44, 132), @(40, 130),
@@ -2391,127 +2987,88 @@ function Initialize-WorldMap {
             @(58, 50), @(60, 55), @(60, 60), @(58, 70), @(55, 72), @(52, 55),
             @(50, 50), @(50, 45), @(52, 40), @(55, 40), @(58, 50), @(60, 55),
             @(60, 28), @(67, 26), @(69, 31), @(70, 28)
-        )
-
-        # India (sub-continent)
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'India'; Coords = @(
             @(28, 68), @(30, 74), @(30, 78), @(28, 85), @(26, 89), @(22, 90),
             @(22, 88), @(18, 84), @(15, 80), @(10, 80), @(8, 77), @(10, 76),
             @(13, 75), @(15, 74), @(20, 73), @(22, 69), @(25, 68), @(28, 68)
-        )
-
-        # Australia
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'Australia'; Coords = @(
             @(-12, 130), @(-12, 136), @(-14, 136), @(-14, 141), @(-18, 146),
             @(-24, 152), @(-28, 154), @(-33, 152), @(-37, 150), @(-39, 146),
             @(-39, 144), @(-37, 140), @(-35, 137), @(-35, 135), @(-32, 132),
             @(-32, 128), @(-34, 122), @(-34, 116), @(-32, 115), @(-28, 114),
             @(-24, 114), @(-22, 114), @(-18, 122), @(-15, 129), @(-12, 130)
-        )
-
-        # Japan (simplified)
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'Japan'; Coords = @(
             @(45, 142), @(43, 145), @(40, 140), @(38, 140), @(36, 140),
             @(34, 135), @(33, 131), @(34, 130), @(35, 133), @(36, 136),
             @(37, 137), @(39, 140), @(41, 140), @(43, 143), @(45, 142)
-        )
-
-        # UK / Ireland
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'UK'; Coords = @(
             @(50, -6), @(51, -5), @(52, -4), @(53, -3), @(54, -3), @(55, -2),
             @(56, -3), @(57, -2), @(58, -3), @(59, -3), @(58, -5), @(57, -6),
             @(56, -5), @(55, -5), @(54, -5), @(53, -4), @(52, -5), @(51, -5), @(50, -6)
-        )
-
-        # Greenland
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'Greenland'; Coords = @(
             @(60, -45), @(63, -42), @(68, -30), @(72, -22), @(76, -20), @(78, -18),
             @(80, -25), @(82, -35), @(82, -50), @(80, -60), @(78, -68), @(76, -70),
             @(72, -55), @(68, -52), @(65, -53), @(62, -50), @(60, -45)
-        )
-
-        # Iceland
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'Iceland'; Coords = @(
             @(64, -22), @(65, -18), @(66, -16), @(66, -14), @(65, -14),
             @(64, -16), @(63, -18), @(63, -22), @(64, -22)
-        )
-
-        # New Zealand
-        Add-ContinentPoly -Coords @(
+        )},
+        @{ Name = 'NewZealand'; Coords = @(
             @(-35, 174), @(-37, 176), @(-39, 177), @(-41, 176), @(-42, 174),
             @(-44, 170), @(-46, 167), @(-47, 167), @(-46, 169), @(-44, 172),
             @(-42, 173), @(-40, 176), @(-38, 176), @(-36, 175), @(-35, 174)
-        )
+        )}
+    )
+}
 
-    } # end if (-not $useImage) polygon fallback
-
-    # Place exchange markers
-    $script:mapMarkers = @{}
-    foreach ($row in $script:exchangeRows) {
-        if (-not $row.IsActive) { continue }
-        Add-MapMarker -Row $row -CanvasWidth $w -CanvasHeight $h
+function Draw-FlatContinents {
+    param([double]$Width, [double]$Height, $Fill, $Stroke)
+    foreach ($cont in Get-ContinentData) {
+        $poly = New-Object System.Windows.Shapes.Polygon
+        $poly.Fill = $Fill; $poly.Stroke = $Stroke
+        $poly.StrokeThickness = 1; $poly.Opacity = 0.85
+        $poly.IsHitTestVisible = $false
+        $points = New-Object System.Windows.Media.PointCollection
+        foreach ($c in $cont.Coords) {
+            $px = (($c[1] + 180) / 360) * $Width
+            $py = ((90 - $c[0]) / 180) * $Height
+            $points.Add([System.Windows.Point]::new($px, $py))
+        }
+        $poly.Points = $points
+        $canvasMap.Children.Add($poly) | Out-Null
     }
 }
 
-function Convert-LatLonToCanvas {
-    param([double]$Lat, [double]$Lon, [double]$Width, [double]$Height)
-    # Equirectangular projection
-    $x = (($Lon + 180) / 360) * $Width
-    $y = ((90 - $Lat) / 180) * $Height
-    return @{ X = $x; Y = $y }
-}
-
-function Add-MapMarker {
-    param([PSCustomObject]$Row, [double]$CanvasWidth, [double]$CanvasHeight)
-
-    $pos = Convert-LatLonToCanvas -Lat $Row.Latitude -Lon $Row.Longitude -Width $CanvasWidth -Height $CanvasHeight
+function Draw-GlobeContinents {
+    param([double]$Width, [double]$Height)
     $converter = [System.Windows.Media.BrushConverter]::new()
-
-    # Outer glow circle
-    $glow = New-Object System.Windows.Shapes.Ellipse
-    $glow.Width = 18; $glow.Height = 18
-    $glow.Fill = $converter.ConvertFromString('#3300CC66')
-    $glow.IsHitTestVisible = $false
-    [System.Windows.Controls.Canvas]::SetLeft($glow, $pos.X - 9)
-    [System.Windows.Controls.Canvas]::SetTop($glow, $pos.Y - 9)
-    $canvasMap.Children.Add($glow) | Out-Null
-
-    # Main marker dot
-    $marker = New-Object System.Windows.Shapes.Ellipse
-    $marker.Width = 10; $marker.Height = 10
-    $statusColor = Get-StatusColor -Status 'Closed'
-    $marker.Fill = $converter.ConvertFromString($statusColor)
-    $marker.Stroke = $converter.ConvertFromString('#FFFFFF')
-    $marker.StrokeThickness = 1
-    $marker.Cursor = [System.Windows.Input.Cursors]::Hand
-    [System.Windows.Controls.Canvas]::SetLeft($marker, $pos.X - 5)
-    [System.Windows.Controls.Canvas]::SetTop($marker, $pos.Y - 5)
-
-    # Tooltip
-    $tp = New-Object System.Windows.Controls.ToolTip
-    $tp.Content = "$($Row.DisplayName) ($($Row.Symbol))"
-    [System.Windows.Controls.ToolTipService]::SetToolTip($marker, $tp)
-
-    # Click handler for flyout — use Tag to avoid closure scope issues
-    $marker.Tag = $Row.Code
-    $marker.Add_MouseLeftButtonDown({
-            param($sender, $e)
-            Show-ExchangeFlyout -ExchangeCode $sender.Tag
-        })
-
-    $canvasMap.Children.Add($marker) | Out-Null
-
-    # Label
-    $lbl = New-Object System.Windows.Controls.TextBlock
-    $lbl.Text = $Row.Symbol
-    $lbl.FontSize = 9
-    $lbl.Foreground = $converter.ConvertFromString('#CCCCCC')
-    $lbl.IsHitTestVisible = $false
-    [System.Windows.Controls.Canvas]::SetLeft($lbl, $pos.X + 7)
-    [System.Windows.Controls.Canvas]::SetTop($lbl, $pos.Y - 7)
-    $canvasMap.Children.Add($lbl) | Out-Null
-
-    $script:mapMarkers[$Row.Code] = @{ Marker = $marker; Glow = $glow; Tooltip = $tp; Label = $lbl }
+    $landFill = $converter.ConvertFromString('#1B3A2A')
+    $landStroke = $converter.ConvertFromString('#2D6B45')
+    foreach ($cont in Get-ContinentData) {
+        $poly = New-Object System.Windows.Shapes.Polygon
+        $poly.Fill = $landFill; $poly.Stroke = $landStroke
+        $poly.StrokeThickness = 1; $poly.Opacity = 0.85
+        $poly.IsHitTestVisible = $false
+        $points = New-Object System.Windows.Media.PointCollection
+        $anyVisible = $false
+        foreach ($c in $cont.Coords) {
+            $p = Convert-LatLonToGlobe -Lat $c[0] -Lon $c[1] -Width $Width -Height $Height
+            if ($p.Visible) {
+                $points.Add([System.Windows.Point]::new($p.X, $p.Y))
+                $anyVisible = $true
+            }
+        }
+        if ($anyVisible -and $points.Count -ge 3) {
+            $poly.Points = $points
+            $canvasMap.Children.Add($poly) | Out-Null
+        }
+    }
 }
 
 # ── Exchange Detail Flyout ────────────────────────────────────
@@ -2881,7 +3438,7 @@ function Update-AllDisplays {
         }
 
         # Update map marker
-        if ($script:mapMarkers.ContainsKey($row.Code)) {
+        if ($script:mapMarkers -and $script:mapMarkers.ContainsKey($row.Code)) {
             $mm = $script:mapMarkers[$row.Code]
             $mm.Marker.Fill = $converter.ConvertFromString($color)
             $mm.Glow.Fill = $converter.ConvertFromString(($color -replace '^#', '#33'))
@@ -2891,6 +3448,23 @@ function Update-AllDisplays {
         # Check notifications
         if ($row.IsActive) {
             Check-Notifications -Row $row -StatusInfo $statusInfo
+        }
+    }
+
+    # Update cluster markers
+    if ($script:mapClusters) {
+        foreach ($key in @($script:mapClusters.Keys)) {
+            $cl = $script:mapClusters[$key]
+            $clusterColor = Get-ClusterPriorityColor -Codes $cl.Codes
+            $cl.Dot.Fill = $converter.ConvertFromString($clusterColor)
+            $cl.Glow.Fill = $converter.ConvertFromString(($clusterColor -replace '^#', '#33'))
+            # Update cluster tooltip with current status
+            $names = @()
+            foreach ($code in $cl.Codes) {
+                $r = $script:exchangeRows | Where-Object { $_.Code -eq $code } | Select-Object -First 1
+                if ($r) { $names += "$($r.DisplayName) ($($r.Symbol)) — $($r.StatusText)" }
+            }
+            $cl.Tooltip.Content = $names -join "`n"
         }
     }
 
@@ -3018,6 +3592,166 @@ $gridExchanges.Add_CellEditEnding({
 # Grid lines toggle
 $chkShowGridLines.Add_Checked({ Initialize-WorldMap })
 $chkShowGridLines.Add_Unchecked({ Initialize-WorldMap })
+
+# ── Map Toolbar Event Handlers ────────────────────────────────
+
+# Map style ComboBox
+$cmbMapStyle.Add_SelectionChanged({ Initialize-WorldMap })
+
+# Map projection ComboBox
+$cmbMapProjection.Add_SelectionChanged({
+        $sel = $cmbMapProjection.SelectedItem
+        if ($sel -and $sel.Tag) {
+            $script:mapProjection = $sel.Tag
+            $script:expandedCluster = $null
+            Initialize-WorldMap
+        }
+    })
+
+# Overlay toggles
+$chkTerminator.Add_Checked({ Initialize-WorldMap })
+$chkTerminator.Add_Unchecked({ Initialize-WorldMap })
+$chkTimeLine.Add_Checked({ Initialize-WorldMap })
+$chkTimeLine.Add_Unchecked({ Initialize-WorldMap })
+$chkTimeZoneBands.Add_Checked({ Initialize-WorldMap })
+$chkTimeZoneBands.Add_Unchecked({ Initialize-WorldMap })
+$chkTradingSessions.Add_Checked({ Initialize-WorldMap })
+$chkTradingSessions.Add_Unchecked({ Initialize-WorldMap })
+
+# Zoom controls
+$btnZoomIn.Add_Click({
+        $script:mapZoom = [Math]::Min($script:mapZoom * 1.4, 8.0)
+        Apply-MapZoom
+    })
+
+$btnZoomOut.Add_Click({
+        $script:mapZoom = [Math]::Max($script:mapZoom / 1.4, 1.0)
+        if ($script:mapZoom -le 1.01) {
+            $script:mapZoom = 1.0; $script:mapPanX = 0; $script:mapPanY = 0
+        }
+        Apply-MapZoom
+    })
+
+$btnZoomReset.Add_Click({
+        $script:mapZoom = 1.0; $script:mapPanX = 0; $script:mapPanY = 0
+        Apply-MapZoom
+    })
+
+# Mouse wheel zoom on canvas
+$canvasMap.Add_MouseWheel({
+        param($sender, $e)
+        $delta = $e.Delta
+        $oldZoom = $script:mapZoom
+        if ($delta -gt 0) {
+            $script:mapZoom = [Math]::Min($script:mapZoom * 1.15, 8.0)
+        } else {
+            $script:mapZoom = [Math]::Max($script:mapZoom / 1.15, 1.0)
+        }
+        if ($script:mapZoom -le 1.01) {
+            $script:mapZoom = 1.0; $script:mapPanX = 0; $script:mapPanY = 0
+        }
+        # Zoom toward cursor position
+        if ($script:mapZoom -gt 1.0 -and $oldZoom -gt 0) {
+            $mousePos = $e.GetPosition($canvasMap)
+            $scale = $script:mapZoom / $oldZoom
+            $script:mapPanX = $mousePos.X - $scale * ($mousePos.X - $script:mapPanX)
+            $script:mapPanY = $mousePos.Y - $scale * ($mousePos.Y - $script:mapPanY)
+        }
+        Apply-MapZoom
+        $e.Handled = $true
+    })
+
+# Mouse drag to pan (right button for flat, left button for globe rotation)
+$canvasMap.Add_MouseRightButtonDown({
+        param($sender, $e)
+        if ($script:mapZoom -gt 1.0) {
+            $script:mapDragging = $true
+            $script:mapDragStart = $e.GetPosition($canvasMap)
+            $script:mapPanStart = @{ X = $script:mapPanX; Y = $script:mapPanY }
+            $canvasMap.CaptureMouse()
+            $e.Handled = $true
+        }
+    })
+
+$canvasMap.Add_MouseMove({
+        param($sender, $e)
+        if ($script:mapDragging -and $script:mapDragStart) {
+            $pos = $e.GetPosition($canvasMap)
+            $script:mapPanX = $script:mapPanStart.X + ($pos.X - $script:mapDragStart.X)
+            $script:mapPanY = $script:mapPanStart.Y + ($pos.Y - $script:mapDragStart.Y)
+            Apply-MapZoom
+        }
+        if ($script:globeDragging -and $script:mapProjection -eq 'Globe') {
+            $pos = $e.GetPosition($canvasMap)
+            $dx = $pos.X - $script:globeDragStart.X
+            $dy = $pos.Y - $script:globeDragStart.Y
+            $script:globeCenterLon = $script:globeDragStartLon - $dx * 0.3
+            $script:globeCenterLat = [Math]::Max(-80, [Math]::Min(80, $script:globeDragStartLat + $dy * 0.3))
+            Initialize-WorldMap
+            $script:globeDragStart = $pos
+            $script:globeDragStartLon = $script:globeCenterLon
+            $script:globeDragStartLat = $script:globeCenterLat
+        }
+    })
+
+$canvasMap.Add_MouseRightButtonUp({
+        param($sender, $e)
+        if ($script:mapDragging) {
+            $script:mapDragging = $false
+            $canvasMap.ReleaseMouseCapture()
+            $e.Handled = $true
+        }
+    })
+
+# Globe rotation via left mouse drag
+$script:globeDragging = $false
+$script:globeDragStart = $null
+$script:globeDragStartLon = 0
+$script:globeDragStartLat = 0
+
+$canvasMap.Add_MouseLeftButtonDown({
+        param($sender, $e)
+        if ($script:mapProjection -eq 'Globe') {
+            $script:globeDragging = $true
+            $script:globeDragStart = $e.GetPosition($canvasMap)
+            $script:globeDragStartLon = $script:globeCenterLon
+            $script:globeDragStartLat = $script:globeCenterLat
+            $canvasMap.CaptureMouse()
+        }
+    })
+
+$canvasMap.Add_MouseLeftButtonUp({
+        param($sender, $e)
+        if ($script:globeDragging) {
+            $script:globeDragging = $false
+            $canvasMap.ReleaseMouseCapture()
+        }
+    })
+
+function Apply-MapZoom {
+    if (-not $canvasMap.RenderTransform -or $canvasMap.RenderTransform -isnot [System.Windows.Media.TransformGroup]) {
+        $tg = New-Object System.Windows.Media.TransformGroup
+        $tg.Children.Add((New-Object System.Windows.Media.ScaleTransform))
+        $tg.Children.Add((New-Object System.Windows.Media.TranslateTransform))
+        $canvasMap.RenderTransform = $tg
+    }
+    $tg = $canvasMap.RenderTransform
+    $st = $tg.Children[0]
+    $tt = $tg.Children[1]
+    $st.ScaleX = $script:mapZoom
+    $st.ScaleY = $script:mapZoom
+    if ($script:mapZoom -le 1.01) {
+        $tt.X = 0; $tt.Y = 0
+    } else {
+        # Clamp pan to prevent scrolling beyond map edges
+        $cw = $canvasMap.ActualWidth; $ch = $canvasMap.ActualHeight
+        $maxPanX = $cw * ($script:mapZoom - 1); $maxPanY = $ch * ($script:mapZoom - 1)
+        $script:mapPanX = [Math]::Max(-$maxPanX, [Math]::Min(0, $script:mapPanX))
+        $script:mapPanY = [Math]::Max(-$maxPanY, [Math]::Min(0, $script:mapPanY))
+        $tt.X = $script:mapPanX
+        $tt.Y = $script:mapPanY
+    }
+}
 
 # Filter textbox
 $txtFilter.Add_TextChanged({
@@ -3194,6 +3928,16 @@ $marketDataTimer.Add_Tick({
     })
 $marketDataTimer.Start()
 
+# Map overlay refresh timer (5 minutes — re-renders solar terminator + time line)
+$mapOverlayTimer = New-Object System.Windows.Threading.DispatcherTimer
+$mapOverlayTimer.Interval = [TimeSpan]::FromMinutes(5)
+$mapOverlayTimer.Add_Tick({
+        if ($canvasMap.ActualWidth -gt 50 -and $canvasMap.ActualHeight -gt 50) {
+            Initialize-WorldMap
+        }
+    })
+$mapOverlayTimer.Start()
+
 # ── Show Window ───────────────────────────────────────────────
 
 # Use ShowDialog so the script can be re-run in the same session
@@ -3207,6 +3951,7 @@ $window.ShowDialog()
 # Cleanup
 $timer.Stop()
 $marketDataTimer.Stop()
+$mapOverlayTimer.Stop()
 if ($script:notifyIcon) {
     $script:notifyIcon.Visible = $false
     $script:notifyIcon.Dispose()

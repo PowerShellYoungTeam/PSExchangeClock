@@ -11,5 +11,8 @@
         5
     ],
     "CommodityBaseCurrency": "USD",
-    "SecretsBackend": "CredentialManager"
+    "SecretsBackend": "CredentialManager",
+    "MapStyle": "NightSatellite",
+    "MapProjection": "Flat",
+    "MapOverlays": ["DayNight", "TimeLine"]
 }

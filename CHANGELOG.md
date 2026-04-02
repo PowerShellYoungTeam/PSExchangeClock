@@ -5,6 +5,31 @@ All notable changes to PSExchangeClock will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-15
+
+### Fixed
+
+- Overlapping exchange markers (XNYS/XNAS in New York, XBOM/XNSE in Mumbai) now render as cluster markers with a count badge; click to expand into a radial fan layout
+
+### Added
+
+- **Zoom & pan** — mouse-wheel zoom (1×–8×), right-drag to pan, reset button
+- **Solar terminator** — semi-transparent day/night overlay updated every 5 minutes
+- **Current time line** — vertical UTC time indicator on the flat map
+- **Map style selector** — Night Satellite (default), Blue Marble, Vector Dark, and Minimal styles
+- **Projection selector** — switch between Flat (equirectangular) and Globe (orthographic) views
+- **Globe view** — orthographic projection with left-drag rotation, graticule lines, and continent outlines
+- **Timezone bands overlay** — alternating colour strips with UTC offset labels
+- **Trading sessions overlay** — Asia, Europe, and Americas session bands
+- Map toolbar with controls for style, projection, overlays, and zoom
+- 5-minute overlay refresh timer for terminator and time line
+
+### Changed
+
+- `Initialize-WorldMap` rewritten to support multiple styles, projections, overlays, and clustering
+- `Convert-LatLonToCanvas` updated with globe-mode routing and visibility flag
+- `Add-MapMarker` updated with offset and expanded-fan support
+
 ## [1.0.0] - 2026-04-02
 
 ### Added

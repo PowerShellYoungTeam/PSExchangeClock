@@ -47,4 +47,7 @@ jobs:
               env:
                   PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
               run: |
-                  Publish-Module -Path ./PSExchangeClock -NuGetApiKey $env:PSGALLERY_API_KEY -AllowPrerelease -Verbose
+                  if ([string]::IsNullOrWhiteSpace($env:PSGALLERY_API_KEY)) {
+                      throw "PSGALLERY_API_KEY secret is missing or empty"
+                  }
+                  Publish-Module -Path ./PSExchangeClock -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose

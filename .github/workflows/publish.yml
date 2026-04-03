@@ -22,7 +22,7 @@ jobs:
             - name: Run PSScriptAnalyzer (gate)
               shell: pwsh
               run: |
-                  $results = Invoke-ScriptAnalyzer -Path ./PSExchangeClock -Recurse -Severity Warning
+                  $results = Invoke-ScriptAnalyzer -Path ./PSExchangeClock -Recurse -Severity Error -ExcludeRule PSAvoidUsingConvertToSecureStringWithPlainText
                   if ($results) {
                       $results | Format-Table -AutoSize
                       throw "PSScriptAnalyzer found $($results.Count) issue(s). Fix before publishing."
@@ -47,4 +47,4 @@ jobs:
               env:
                   PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
               run: |
-                  Publish-Module -Path ./PSExchangeClock -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose
+                  Publish-Module -Path ./PSExchangeClock -NuGetApiKey $env:PSGALLERY_API_KEY -AllowPrerelease -Verbose

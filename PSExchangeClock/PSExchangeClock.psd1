@@ -1,7 +1,7 @@
 @{
     # Module manifest for PSExchangeClock
     RootModule        = 'PSExchangeClock.psm1'
-    ModuleVersion     = '1.1.0'
+    ModuleVersion     = '0.9.0'
     GUID              = 'a3e4f8b2-7c1d-4e5a-9f2b-8d6c3a1e7f04'
     Author            = 'PowerShellYoungTeam'
     CompanyName       = 'PowerShellYoungTeam'
@@ -24,10 +24,11 @@
     # Private data for PSGallery publishing
     PrivateData       = @{
         PSData = @{
+            Prerelease  = 'beta'
             Tags         = @('Stock', 'Exchange', 'Dashboard', 'WPF', 'Finance', 'Market', 'Trading', 'Countdown', 'Forex', 'Crypto', 'Commodities')
             LicenseUri   = 'https://github.com/PowerShellYoungTeam/PSExchangeClock/blob/main/LICENSE'
             ProjectUri   = 'https://github.com/PowerShellYoungTeam/PSExchangeClock'
-            ReleaseNotes = 'v1.1.0 - Interactive world map overhaul: cluster markers, zoom/pan, solar terminator, globe view, map styles, and data overlays.'
+            ReleaseNotes = 'v0.9.0-beta - Preview release of PSExchangeClock with interactive world map, overlays, and market data enhancements.'
         }
     }
 }

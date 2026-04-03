@@ -3,6 +3,7 @@ user-preferences.json
 
 # Downloaded assets
 worldmap.jpg
+tools/.cache/
 
 # PowerShell artifacts
 *.pdb

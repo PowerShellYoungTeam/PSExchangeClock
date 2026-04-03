@@ -5,6 +5,15 @@ All notable changes to PSExchangeClock will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1-beta] - 2026-04-03
+
+### Changed
+
+- Enforced PowerShell 7+ in the module manifest via `PowerShellVersion = '7.0'`
+- Added `#requires -Version 7.0` to public entry scripts to block Windows PowerShell 5.1 at runtime
+- Updated installation guidance to use `Install-Module PSExchangeClock -AllowPrerelease -Scope CurrentUser`
+- Updated `about_PSExchangeClock` requirements/help text to match PowerShell 7+ prerelease usage
+
 ## [1.1.0] - 2026-07-15
 
 ### Fixed

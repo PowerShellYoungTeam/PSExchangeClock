@@ -58,7 +58,7 @@ LONG DESCRIPTION
     * Holiday support via holidays.json for market closure overrides
 
 REQUIREMENTS
-    Windows PowerShell 5.1 or PowerShell 7+ on Windows (WPF requires Windows)
+    PowerShell 7+ on Windows (WPF requires Windows)
     .NET Framework 4.5+ (for WPF assemblies)
     Internet connection (for market data APIs — exchange hours work offline)
 
@@ -69,7 +69,7 @@ REQUIREMENTS
 GETTING STARTED
     Install from the PowerShell Gallery:
 
-        Install-Module PSExchangeClock
+        Install-Module PSExchangeClock -AllowPrerelease -Scope CurrentUser
         Start-PSExchangeClock
 
     Or use the full function name:

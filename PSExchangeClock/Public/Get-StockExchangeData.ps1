@@ -1,3 +1,5 @@
+#requires -Version 7.0
+
 function Get-StockExchangeData {
 <#
 .SYNOPSIS

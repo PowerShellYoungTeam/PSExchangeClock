@@ -39,7 +39,7 @@ A real-time WPF dashboard for monitoring global stock exchange closing times, li
 ## Quick Start
 
 ```powershell
-Install-Module PSExchangeClock
+Install-Module PSExchangeClock -AllowPrerelease -Scope CurrentUser
 Start-PSExchangeClock
 ```
 
@@ -51,7 +51,7 @@ New-StockExchangeCountdownDashboard
 
 ## Requirements
 
-- **Windows PowerShell 5.1** or **PowerShell 7+** on Windows (WPF requires Windows)
+- **PowerShell 7+** on Windows (WPF requires Windows)
 - **.NET Framework 4.5+** (for WPF assemblies)
 - **Internet connection** for market data APIs (exchange hours work offline)
 
@@ -71,7 +71,7 @@ Enter your keys in the **Settings** tab of the dashboard, or run `New-StockExcha
 ### From PowerShell Gallery (recommended)
 
 ```powershell
-Install-Module PSExchangeClock -Scope CurrentUser
+Install-Module PSExchangeClock -AllowPrerelease -Scope CurrentUser
 ```
 
 ### From Source

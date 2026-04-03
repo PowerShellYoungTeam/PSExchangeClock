@@ -24,7 +24,7 @@
     # Private data for PSGallery publishing
     PrivateData       = @{
         PSData = @{
-            Prerelease  = 'beta'
+            Prerelease   = 'beta'
             Tags         = @('Stock', 'Exchange', 'Dashboard', 'WPF', 'Finance', 'Market', 'Trading', 'Countdown', 'Forex', 'Crypto', 'Commodities')
             LicenseUri   = 'https://github.com/PowerShellYoungTeam/PSExchangeClock/blob/main/LICENSE'
             ProjectUri   = 'https://github.com/PowerShellYoungTeam/PSExchangeClock'

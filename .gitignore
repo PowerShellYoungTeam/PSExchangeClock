@@ -16,3 +16,7 @@ worldmap.jpg
 
 # Encrypted key stores
 api-keys.clixml
+
+# Local-only content (do not commit)
+docs/2026-04-02-introducing-psexchangeclock.md
+docs/social-media-posts.md

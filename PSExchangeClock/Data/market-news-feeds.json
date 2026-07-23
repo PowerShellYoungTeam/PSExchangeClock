@@ -1,0 +1,32 @@
+{
+  "Version": 1,
+  "DefaultCacheMinutes": 5,
+  "DefaultTimeoutSeconds": 10,
+  "DefaultItemLimit": 5,
+  "Feeds": [
+    {
+      "Name": "BBC Business",
+      "Category": "Markets",
+      "Url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+      "Format": "Rss",
+      "Enabled": true,
+      "Tier": 2
+    },
+    {
+      "Name": "CNBC Markets",
+      "Category": "Markets",
+      "Url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114",
+      "Format": "Rss",
+      "Enabled": true,
+      "Tier": 2
+    },
+    {
+      "Name": "U.S. Energy Information Administration",
+      "Category": "Energy",
+      "Url": "https://www.eia.gov/rss/todayinenergy.xml",
+      "Format": "Rss",
+      "Enabled": true,
+      "Tier": 1
+    }
+  ]
+}

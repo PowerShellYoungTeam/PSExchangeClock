@@ -1,0 +1,19 @@
+{
+  "Version": 1,
+  "DefaultTimeoutSeconds": 10,
+  "MaximumEvents": 75,
+  "Feeds": [
+    {
+      "Name": "GDACS",
+      "Url": "https://www.gdacs.org/xml/rss.xml",
+      "Format": "Rss",
+      "Enabled": true
+    },
+    {
+      "Name": "NASA EONET",
+      "Url": "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=50",
+      "Format": "Json",
+      "Enabled": true
+    }
+  ]
+}

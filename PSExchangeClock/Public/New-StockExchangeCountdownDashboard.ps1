@@ -610,6 +610,7 @@ public static class CredManager {
                                         <TextBlock Text="── Live Data ──" Foreground="#55AA88" FontSize="9" FontWeight="Bold" Margin="0,6,0,3"/>
                                         <CheckBox x:Name="chkEarthquakes" Content="Earthquakes" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
                                         <CheckBox x:Name="chkVolcanoes" Content="Volcanoes" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
+                                        <CheckBox x:Name="chkNaturalEvents" Content="Natural Events" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
                                         <CheckBox x:Name="chkConflictZones" Content="Conflict Zones" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
                                         <TextBlock Text="── Infrastructure ──" Foreground="#AA8855" FontSize="9" FontWeight="Bold" Margin="0,6,0,3"/>
                                         <CheckBox x:Name="chkSubmarineCables" Content="Submarine Cables" Foreground="#CCCCCC" FontSize="10" Margin="2,2"/>
@@ -876,6 +877,7 @@ public static class CredManager {
     $chkPoliticalBounds = $window.FindName('chkPoliticalBounds')
     $chkEarthquakes = $window.FindName('chkEarthquakes')
     $chkVolcanoes = $window.FindName('chkVolcanoes')
+    $chkNaturalEvents = $window.FindName('chkNaturalEvents')
     $chkSubmarineCables = $window.FindName('chkSubmarineCables')
     $chkPowerPlants = $window.FindName('chkPowerPlants')
     $chkTZBoundaries = $window.FindName('chkTZBoundaries')
@@ -960,6 +962,7 @@ public static class CredManager {
     $script:globeSpinning = $false
     $script:earthquakeData = $null
     $script:volcanoData = $null
+    $script:naturalEventData = $null
     $script:liveFeedLastFetch = [DateTime]::MinValue
     $script:submarineCableData = $null
     $script:powerPlantData = $null
@@ -994,7 +997,15 @@ public static class CredManager {
 
     # ── Market Data Cache ─────────────────────────────────────────
 
-    $script:newsCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
+    $script:newsCache = @{
+        Data         = $null
+        LastFetch    = [datetime]::MinValue
+        LastAttempt  = [datetime]::MinValue
+        Failures     = @()
+        Status       = 'Unavailable'
+        IsRefreshing = $false
+    }
+    $script:newsFilters = @{ Sources = @(); Categories = @(); Initialized = $false }
     $script:fxCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
     $script:cryptoCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
     $script:indicesCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
@@ -1003,57 +1014,125 @@ public static class CredManager {
 
     # ── Market Data Fetch Functions ───────────────────────────────
 
+    function Get-MarketNewsFeedDefinitions {
+        $feedPath = Join-Path $dataDir 'market-news-feeds.json'
+        if (-not (Test-Path $feedPath)) {
+            Write-Verbose "Market news feed catalog not found: $feedPath"
+            return @()
+        }
+
+        try {
+            $catalog = Get-Content -Path $feedPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            return @($catalog.Feeds | Where-Object { $_.Enabled -and $_.Url -and $_.Name })
+        }
+        catch {
+            Write-Verbose "Failed to load market news feed catalog: $($_.Exception.Message)"
+            return @()
+        }
+    }
+
+    function ConvertTo-MarketNewsItems {
+        param($Feed, [string]$XmlContent)
+
+        [xml]$feedXml = $XmlContent
+        $items = if ($Feed.Format -eq 'Atom') { @($feedXml.feed.entry) } else { @($feedXml.rss.channel.item) }
+        $itemLimit = if ($Feed.ItemLimit) { [int]$Feed.ItemLimit } else { 5 }
+
+        foreach ($item in ($items | Select-Object -First $itemLimit)) {
+            $rawTitle = if ($item.title -is [System.Xml.XmlNode]) { $item.title.InnerText } else { [string]$item.title }
+            $title = [System.Net.WebUtility]::HtmlDecode(($rawTitle -replace '<[^>]+>', '').Trim())
+            $link = if ($Feed.Format -eq 'Atom') {
+                [string](($item.link | Select-Object -First 1).href)
+            }
+            else {
+                [string]$item.link
+            }
+            $dateText = if ($Feed.Format -eq 'Atom') { [string]$item.updated } else { [string]$item.pubDate }
+            if ([string]::IsNullOrWhiteSpace($dateText) -and $Feed.Format -eq 'Atom') { $dateText = [string]$item.published }
+            $published = [datetime]::Now
+            try { $published = [datetime]::Parse($dateText) } catch { }
+
+            if (-not [string]::IsNullOrWhiteSpace($title) -and -not [string]::IsNullOrWhiteSpace($link)) {
+                [PSCustomObject]@{
+                    Title     = $title
+                    Source    = [string]$Feed.Name
+                    Category  = [string]$Feed.Category
+                    Tier      = [int]$Feed.Tier
+                    Published = $published
+                    Link      = $link
+                }
+            }
+        }
+    }
+
     function Get-FinancialNews {
-        # Check cache (5 minute TTL)
-        if ($script:newsCache.Data -and ([datetime]::Now - $script:newsCache.LastFetch).TotalMinutes -lt 5) {
+        param([switch]$ForceRefresh)
+
+        $cacheMinutes = 5
+        if (-not $ForceRefresh -and $script:newsCache.Data -and ([datetime]::Now - $script:newsCache.LastFetch).TotalMinutes -lt $cacheMinutes) {
             return $script:newsCache.Data
         }
 
-        $feeds = @(
-            @{ Name = 'Reuters'; Url = 'https://feeds.reuters.com/reuters/businessNews' },
-            @{ Name = 'BBC'; Url = 'https://feeds.bbc.co.uk/news/business/rss.xml' },
-            @{ Name = 'CNBC'; Url = 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114' }
-        )
-
+        $script:newsCache.IsRefreshing = $true
+        $script:newsCache.LastAttempt = [datetime]::Now
         $allItems = @()
-        foreach ($feed in $feeds) {
-            try {
-                $response = Invoke-WebRequest -Uri $feed.Url -UseBasicParsing -TimeoutSec 10
-                [xml]$rss = $response.Content
-                $items = $rss.rss.channel.item | Select-Object -First 5
-                foreach ($item in $items) {
-                    $pubDate = $null
-                    try { $pubDate = [datetime]::Parse($item.pubDate) } catch { $pubDate = [datetime]::Now }
-                    $allItems += [PSCustomObject]@{
-                        Title     = ($item.title -replace '<[^>]+>', '').Trim()
-                        Source    = $feed.Name
-                        Published = $pubDate
-                        Link      = $item.link
-                    }
+        $failures = @()
+        try {
+            foreach ($feed in Get-MarketNewsFeedDefinitions) {
+                $timeoutSeconds = if ($feed.TimeoutSeconds) { [int]$feed.TimeoutSeconds } else { 10 }
+                try {
+                    $response = Invoke-WebRequest -Uri $feed.Url -UseBasicParsing -TimeoutSec $timeoutSeconds -ErrorAction Stop
+                    $allItems += @(ConvertTo-MarketNewsItems -Feed $feed -XmlContent $response.Content)
+                }
+                catch {
+                    $failures += $feed.Name
+                    Write-Verbose "Failed to fetch $($feed.Name) feed: $($_.Exception.Message)"
                 }
             }
-            catch {
-                Write-Verbose "Failed to fetch $($feed.Name) RSS: $($_.Exception.Message)"
+
+            $script:newsCache.Failures = $failures
+            if ($allItems.Count -eq 0) {
+                $script:newsCache.Status = if ($script:newsCache.Data) { 'Cached' } else { 'Unavailable' }
+                return $script:newsCache.Data
+            }
+
+            # Deduplicate by normalized title, retaining the most recently published source.
+            $seen = @{}
+            $deduped = @()
+            foreach ($item in ($allItems | Sort-Object Published -Descending)) {
+                $key = ($item.Title.ToLowerInvariant().Trim() -replace '[^a-z0-9 ]', '')
+                if (-not [string]::IsNullOrWhiteSpace($key) -and -not $seen.ContainsKey($key)) {
+                    $seen[$key] = $true
+                    $deduped += $item
+                }
+            }
+
+            $script:newsCache.Data = $deduped | Select-Object -First 15
+            $script:newsCache.LastFetch = [datetime]::Now
+            $script:newsCache.Status = if ($failures.Count -gt 0) { 'Partial' } else { 'Live' }
+            return $script:newsCache.Data
+        }
+        finally {
+            $script:newsCache.IsRefreshing = $false
+        }
+    }
+
+    function Refresh-NewsPanel {
+        $txtStatus.Text = 'Refreshing financial news...'
+        try {
+            $null = Get-FinancialNews -ForceRefresh
+            $txtStatus.Text = "Financial news: $($script:newsCache.Status.ToLowerInvariant())"
+        }
+        catch {
+            $script:newsCache.Status = if ($script:newsCache.Data) { 'Cached' } else { 'Unavailable' }
+            $txtStatus.Text = 'Financial news refresh failed'
+            Write-Verbose "Failed to refresh financial news: $($_.Exception.Message)"
+        }
+        finally {
+            if ($script:activeMarketTab -eq 'News') {
+                Update-MarketDataContent
             }
         }
-
-        if ($allItems.Count -eq 0) { return $null }
-
-        # Deduplicate by title similarity (exact match after lowercase + trim)
-        $seen = @{}
-        $deduped = @()
-        foreach ($item in ($allItems | Sort-Object Published -Descending)) {
-            $key = ($item.Title.ToLower().Trim() -replace '[^a-z0-9 ]', '')
-            if (-not $seen.ContainsKey($key)) {
-                $seen[$key] = $true
-                $deduped += $item
-            }
-        }
-
-        $result = $deduped | Select-Object -First 10
-        $script:newsCache.Data = $result
-        $script:newsCache.LastFetch = [datetime]::Now
-        return $result
     }
 
     function Get-ForexRates {
@@ -1558,19 +1637,139 @@ public static class CredManager {
         $marketDataContent.Children.Add($sep) | Out-Null
     }
 
+    function Get-NewsFilterOptions {
+        $definitions = @(Get-MarketNewsFeedDefinitions)
+        return [PSCustomObject]@{
+            Sources    = @($definitions | ForEach-Object { [string]$_.Name } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+            Categories = @($definitions | ForEach-Object { [string]$_.Category } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+        }
+    }
+
+    function Initialize-NewsFilters {
+        $options = Get-NewsFilterOptions
+        if (-not $script:newsFilters.Initialized) {
+            $script:newsFilters.Sources = @($options.Sources)
+            $script:newsFilters.Categories = @($options.Categories)
+            $script:newsFilters.Initialized = $true
+        }
+        return $options
+    }
+
+    function Add-NewsStatus {
+        param($Converter)
+
+        $status = New-Object System.Windows.Controls.TextBlock
+        $lastSuccess = if ($script:newsCache.LastFetch -gt [datetime]::MinValue) {
+            "$($script:newsCache.LastFetch.ToString('yyyy-MM-dd HH:mm:ss')) ($(Format-RelativeTime -Time $script:newsCache.LastFetch))"
+        }
+        else {
+            'never'
+        }
+        $lastAttempt = if ($script:newsCache.LastAttempt -gt [datetime]::MinValue) { $script:newsCache.LastAttempt.ToString('yyyy-MM-dd HH:mm:ss') } else { 'never' }
+        $unavailable = if ($script:newsCache.Failures.Count -gt 0) { " | Unavailable: $($script:newsCache.Failures -join ', ')" } else { '' }
+
+        switch ($script:newsCache.Status) {
+            'Live' {
+                $status.Text = "Live | Updated: $lastSuccess"
+                $status.Foreground = $Converter.ConvertFromString('#00CC66')
+            }
+            'Partial' {
+                $status.Text = "Partial | Updated: $lastSuccess$unavailable"
+                $status.Foreground = $Converter.ConvertFromString('#FFCC00')
+            }
+            'Cached' {
+                $status.Text = "Cached | Last successful: $lastSuccess | Last attempted: $lastAttempt$unavailable"
+                $status.Foreground = $Converter.ConvertFromString('#FF9900')
+            }
+            default {
+                $status.Text = "Unavailable | Last attempted: $lastAttempt$unavailable"
+                $status.Foreground = $Converter.ConvertFromString('#FF6666')
+            }
+        }
+
+        $status.FontSize = 9; $status.HorizontalAlignment = 'Right'; $status.TextWrapping = 'Wrap'
+        $marketDataContent.Children.Add($status) | Out-Null
+    }
+
     function Render-NewsPanel {
         param($Converter)
-        $news = Get-FinancialNews
+
+        $filterOptions = Initialize-NewsFilters
+        $filterTitle = New-Object System.Windows.Controls.TextBlock
+        $filterTitle.Text = 'News filters'; $filterTitle.FontSize = 10; $filterTitle.Foreground = $Converter.ConvertFromString('#AAAAAA')
+        $filterTitle.VerticalAlignment = 'Center'
+        $filterTitle.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
+        $marketDataContent.Children.Add($filterTitle) | Out-Null
+
+        $refreshButton = New-Object System.Windows.Controls.Button
+        $refreshButton.Content = 'Refresh news'; $refreshButton.FontSize = 10; $refreshButton.Padding = [System.Windows.Thickness]::new(6, 3, 6, 3)
+        $refreshButton.Foreground = $Converter.ConvertFromString('#E0E0E0'); $refreshButton.Background = $Converter.ConvertFromString('#0F3460')
+        $refreshButton.BorderBrush = $Converter.ConvertFromString('#00CC66'); $refreshButton.Cursor = [System.Windows.Input.Cursors]::Hand
+        $refreshButton.IsEnabled = -not $script:newsCache.IsRefreshing
+        $refreshButton.ToolTip = 'Refresh financial news now'
+        $refreshButton.HorizontalAlignment = 'Stretch'; $refreshButton.Margin = [System.Windows.Thickness]::new(0, 0, 0, 6)
+        $refreshButton.Add_Click({ Refresh-NewsPanel })
+        $marketDataContent.Children.Add($refreshButton) | Out-Null
+
+        foreach ($filterGroup in @(
+                @{ Label = 'Sources'; Values = @($filterOptions.Sources); Selected = 'Sources' },
+                @{ Label = 'Categories'; Values = @($filterOptions.Categories); Selected = 'Categories' }
+            )) {
+            $filterPanel = New-Object System.Windows.Controls.WrapPanel
+            $filterPanel.Margin = [System.Windows.Thickness]::new(0, 0, 0, 3)
+            $filterLabel = New-Object System.Windows.Controls.TextBlock
+            $filterLabel.Text = "$($filterGroup.Label): "; $filterLabel.FontSize = 9; $filterLabel.Foreground = $Converter.ConvertFromString('#666666')
+            $filterLabel.VerticalAlignment = 'Center'
+            $filterPanel.Children.Add($filterLabel) | Out-Null
+            foreach ($filterValue in $filterGroup.Values) {
+                $checkBox = New-Object System.Windows.Controls.CheckBox
+                $checkBox.Content = $filterValue; $checkBox.Tag = $filterGroup.Selected; $checkBox.FontSize = 9
+                $checkBox.Foreground = $Converter.ConvertFromString('#AAAAAA'); $checkBox.Margin = [System.Windows.Thickness]::new(0, 0, 8, 0)
+                $checkBox.IsChecked = $script:newsFilters[$filterGroup.Selected] -contains $filterValue
+                $checkBox.Add_Checked({
+                        param($controlSender, $eventArgs)
+                        $selected = $script:newsFilters[$controlSender.Tag]
+                        if ($selected -notcontains [string]$controlSender.Content) {
+                            $script:newsFilters[$controlSender.Tag] = @($selected) + [string]$controlSender.Content
+                        }
+                        Update-MarketDataContent
+                    })
+                $checkBox.Add_Unchecked({
+                        param($controlSender, $eventArgs)
+                        $script:newsFilters[$controlSender.Tag] = @($script:newsFilters[$controlSender.Tag] | Where-Object { $_ -ne [string]$controlSender.Content })
+                        Update-MarketDataContent
+                    })
+                $filterPanel.Children.Add($checkBox) | Out-Null
+            }
+            $marketDataContent.Children.Add($filterPanel) | Out-Null
+        }
+
+        Add-MarketSeparator -Converter $Converter
+        $news = @(Get-FinancialNews)
         if (-not $news) {
             $lbl = New-Object System.Windows.Controls.TextBlock
             $lbl.Text = 'News unavailable — check internet connection'
             $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
             $lbl.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
             $marketDataContent.Children.Add($lbl) | Out-Null
+            Add-MarketSeparator -Converter $Converter
+            Add-NewsStatus -Converter $Converter
             return
         }
 
-        foreach ($item in $news) {
+        $filteredNews = @($news | Where-Object {
+            @($script:newsFilters.Sources) -contains [string]$_.Source -and
+            @($script:newsFilters.Categories) -contains [string]$_.Category
+            })
+        if (-not $filteredNews) {
+            $emptyFilter = New-Object System.Windows.Controls.TextBlock
+            $emptyFilter.Text = 'No stories match the selected filters'
+            $emptyFilter.Foreground = $Converter.ConvertFromString('#888888'); $emptyFilter.FontSize = 11
+            $emptyFilter.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
+            $marketDataContent.Children.Add($emptyFilter) | Out-Null
+        }
+
+        foreach ($item in $filteredNews) {
             $panel = New-Object System.Windows.Controls.StackPanel
             $panel.Margin = [System.Windows.Thickness]::new(0, 0, 0, 8)
             $panel.Cursor = [System.Windows.Input.Cursors]::Hand
@@ -1583,7 +1782,8 @@ public static class CredManager {
 
             $meta = New-Object System.Windows.Controls.TextBlock
             $timeStr = Format-RelativeTime -Time $item.Published
-            $meta.Text = "$($item.Source) · $timeStr"
+            $category = if ($item.Category) { " | $($item.Category)" } else { '' }
+            $meta.Text = "$($item.Source)$category | $timeStr"
             $meta.FontSize = 9; $meta.Foreground = $Converter.ConvertFromString('#666666')
             $meta.Margin = [System.Windows.Thickness]::new(0, 2, 0, 0)
             $panel.Children.Add($meta) | Out-Null
@@ -1599,13 +1799,8 @@ public static class CredManager {
             $marketDataContent.Children.Add($panel) | Out-Null
         }
 
-        # Last updated footer
         Add-MarketSeparator -Converter $Converter
-        $footer = New-Object System.Windows.Controls.TextBlock
-        $footer.Text = "Updated: $(Format-RelativeTime -Time $script:newsCache.LastFetch)"
-        $footer.FontSize = 9; $footer.Foreground = $Converter.ConvertFromString('#555555')
-        $footer.HorizontalAlignment = 'Right'
-        $marketDataContent.Children.Add($footer) | Out-Null
+        Add-NewsStatus -Converter $Converter
     }
 
     function Render-FxPanel {
@@ -2905,6 +3100,111 @@ public static class CredManager {
                 )
             }
         }
+
+        if ($chkNaturalEvents -and $chkNaturalEvents.IsChecked) {
+            $script:naturalEventData = Get-NaturalEvents
+        }
+    }
+
+    function Get-NaturalEventFeedDefinitions {
+        $feedPath = Join-Path $dataDir 'map-event-feeds.json'
+        if (-not (Test-Path $feedPath)) { return @() }
+        try {
+            $catalog = Get-Content -Path $feedPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            return @($catalog.Feeds | Where-Object { $_.Enabled -and $_.Url -and $_.Name })
+        }
+        catch {
+            Write-Verbose "Failed to load map event feed catalog: $($_.Exception.Message)"
+            return @()
+        }
+    }
+
+    function Get-NaturalEvents {
+        $events = @()
+        $maximumEvents = 75
+        $catalogPath = Join-Path $dataDir 'map-event-feeds.json'
+        try {
+            $catalog = Get-Content -Path $catalogPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if ($catalog.MaximumEvents) { $maximumEvents = [int]$catalog.MaximumEvents }
+        }
+        catch { }
+
+        foreach ($feed in Get-NaturalEventFeedDefinitions) {
+            try {
+                if ($feed.Format -eq 'Json') {
+                    $response = Invoke-RestMethod -Uri $feed.Url -TimeoutSec 10 -ErrorAction Stop
+                    foreach ($event in @($response.events)) {
+                        $geometry = @($event.geometry | Select-Object -Last 1)[0]
+                        $coordinates = @($geometry.coordinates)
+                        if ($coordinates.Count -lt 2) { continue }
+                        $lon = [double]$coordinates[0]
+                        $lat = [double]$coordinates[1]
+                        if ($lat -lt -90 -or $lat -gt 90 -or $lon -lt -180 -or $lon -gt 180) { continue }
+                        $category = [string](@($event.categories | Select-Object -First 1)[0].title)
+                        $events += [PSCustomObject]@{
+                            Id = "EONET:$($event.id)"; Source = $feed.Name; Title = [string]$event.title
+                            Category = $category; Severity = 'Info'; Lat = $lat; Lon = $lon
+                            Updated = [datetime]$geometry.date; Link = [string]$event.link
+                        }
+                    }
+                }
+                else {
+                    $response = Invoke-WebRequest -Uri $feed.Url -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                    $feedDocument = New-Object System.Xml.XmlDocument
+                    $feedDocument.LoadXml(([string]$response.Content).TrimStart([char]0xFEFF))
+                    foreach ($item in @($feedDocument.SelectNodes('//*[local-name()="item"]'))) {
+                        $point = [string]$item.SelectSingleNode('./*[local-name()="point"]').InnerText
+                        if ($point -notmatch '^\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*$') { continue }
+                        $lat = [double]$Matches[1]; $lon = [double]$Matches[2]
+                        if ($lat -lt -90 -or $lat -gt 90 -or $lon -lt -180 -or $lon -gt 180) { continue }
+                        $updated = [datetime]::Now
+                        $modified = [string]$item.SelectSingleNode('./*[local-name()="datemodified"]').InnerText
+                        $published = [string]$item.SelectSingleNode('./*[local-name()="pubDate"]').InnerText
+                        try { $updated = [datetime]::Parse($modified) } catch { try { $updated = [datetime]::Parse($published) } catch { } }
+                        $events += [PSCustomObject]@{
+                            Id = "GDACS:$([string]$item.SelectSingleNode('./*[local-name()="guid"]').InnerText)"; Source = $feed.Name
+                            Title = [string]$item.SelectSingleNode('./*[local-name()="title"]').InnerText
+                            Category = [string]$item.SelectSingleNode('./*[local-name()="eventtype"]').InnerText
+                            Severity = [string]$item.SelectSingleNode('./*[local-name()="alertlevel"]').InnerText
+                            Lat = $lat; Lon = $lon; Updated = $updated
+                            Link = [string]$item.SelectSingleNode('./*[local-name()="link"]').InnerText
+                        }
+                    }
+                }
+            }
+            catch {
+                Write-Verbose "Natural event feed $($feed.Name) failed: $($_.Exception.Message)"
+            }
+        }
+
+        $seen = @{}
+        return @($events | Sort-Object Updated -Descending | Where-Object { $_.Id -and -not $seen.ContainsKey($_.Id) -and ($seen[$_.Id] = $true) } | Select-Object -First $maximumEvents)
+    }
+
+    function Draw-NaturalEvents {
+        param([double]$Width, [double]$Height)
+        if (-not $script:naturalEventData -or $script:naturalEventData.Count -eq 0) { return }
+        $converter = [System.Windows.Media.BrushConverter]::new()
+
+        foreach ($event in $script:naturalEventData) {
+            $pos = Convert-LatLonToCanvas -Lat $event.Lat -Lon $event.Lon -Width $Width -Height $Height
+            if (-not $pos.Visible) { continue }
+            $color = switch ($event.Severity) {
+                'Red' { '#DFFF3333' }
+                'Orange' { '#DFFF8800' }
+                default { '#CC44BBDD' }
+            }
+            $marker = New-Object System.Windows.Shapes.Rectangle
+            $marker.Width = 6; $marker.Height = 6
+            $marker.Fill = $converter.ConvertFromString($color)
+            $marker.Stroke = $converter.ConvertFromString('#88FFFFFF')
+            $marker.StrokeThickness = 0.5
+            $marker.Cursor = [System.Windows.Input.Cursors]::Help
+            $marker.ToolTip = "$($event.Title)`n$($event.Source) | $($event.Category) | $($event.Severity)`n$($event.Updated.ToString('yyyy-MM-dd HH:mm')) UTC"
+            [System.Windows.Controls.Canvas]::SetLeft($marker, $pos.X - 3)
+            [System.Windows.Controls.Canvas]::SetTop($marker, $pos.Y - 3)
+            $canvasMap.Children.Add($marker) | Out-Null
+        }
     }
 
     function Draw-Earthquakes {
@@ -3597,7 +3897,7 @@ public static class CredManager {
         }
 
         # Live feed overlays (fetch data if stale, then render)
-        $needLiveFetch = ($chkEarthquakes -and $chkEarthquakes.IsChecked) -or ($chkVolcanoes -and $chkVolcanoes.IsChecked)
+        $needLiveFetch = ($chkEarthquakes -and $chkEarthquakes.IsChecked) -or ($chkVolcanoes -and $chkVolcanoes.IsChecked) -or ($chkNaturalEvents -and $chkNaturalEvents.IsChecked)
         if ($needLiveFetch) { Fetch-LiveFeedData }
 
         if ($chkEarthquakes -and $chkEarthquakes.IsChecked) {
@@ -3605,6 +3905,9 @@ public static class CredManager {
         }
         if ($chkVolcanoes -and $chkVolcanoes.IsChecked) {
             Draw-Volcanoes -Width $w -Height $h
+        }
+        if ($chkNaturalEvents -and $chkNaturalEvents.IsChecked) {
+            Draw-NaturalEvents -Width $w -Height $h
         }
 
         # Submarine cables
@@ -4452,6 +4755,8 @@ public static class CredManager {
     $chkEarthquakes.Add_Unchecked({ Initialize-WorldMap })
     $chkVolcanoes.Add_Checked({ Initialize-WorldMap })
     $chkVolcanoes.Add_Unchecked({ Initialize-WorldMap })
+    $chkNaturalEvents.Add_Checked({ Initialize-WorldMap })
+    $chkNaturalEvents.Add_Unchecked({ Initialize-WorldMap })
     $chkSubmarineCables.Add_Checked({ Initialize-WorldMap })
     $chkSubmarineCables.Add_Unchecked({ Initialize-WorldMap })
     $chkPowerPlants.Add_Checked({ Initialize-WorldMap })

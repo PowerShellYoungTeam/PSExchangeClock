@@ -5,20 +5,13 @@ All notable changes to PSExchangeClock will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.1-beta] - 2026-04-03
-
-### Changed
-
-- Enforced PowerShell 7+ in the module manifest via `PowerShellVersion = '7.0'`
-- Added `#requires -Version 7.0` to public entry scripts to block Windows PowerShell 5.1 at runtime
-- Updated installation guidance to use `Install-Module PSExchangeClock -AllowPrerelease -Scope CurrentUser`
-- Updated `about_PSExchangeClock` requirements/help text to match PowerShell 7+ prerelease usage
-
-## [1.1.0] - 2026-07-15
+## [1.1.0] - 2026-09-28
 
 ### Fixed
 
 - Overlapping exchange markers (XNYS/XNAS in New York, XBOM/XNSE in Mumbai) now render as cluster markers with a count badge; click to expand into a radial fan layout
+- BBC RSS titles no longer render as `System.Xml.XmlElement`; titles are now read from the XML node's inner text
+- Natural Events map markers are now hit-testable so their hover tooltips display correctly
 
 ### Added
 
@@ -34,12 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Timezone boundaries overlay** — timezone region outlines
 - **Earthquakes overlay** — live USGS earthquake feed with magnitude-scaled markers
 - **Volcanoes overlay** — Smithsonian GVP weekly volcano alerts with alert-level colour coding
+- **Natural events overlay** — GDACS and NASA EONET feeds, configurable via `map-event-feeds.json`
 - **Conflict zones overlay** — UCDP/PRIO armed conflict data with intensity-scaled markers
 - **Submarine cables overlay** — global undersea cable network from TeleGeography
 - **Power plants overlay** — major power stations colour-coded by fuel type (nuclear, coal, gas, hydro, wind, solar, geothermal, oil)
 - **Overlay legend** — auto-displayed when conflict zones, power plants, or volcanoes are active; shows symbology for marker sizes, fuel types, and alert levels
 - Map toolbar with controls for style, projection, overlays, and zoom
 - 5-minute overlay refresh timer for terminator and time line
+- **Configurable financial news catalog** — `market-news-feeds.json` drives BBC Business, CNBC Markets, and U.S. EIA RSS sources with per-feed category and tier metadata
+- **News source/category filters** — tick sources and categories on/off; selections are pruned automatically if a feed is removed from the catalog
+- **Manual news refresh** — a News-only refresh action that bypasses the 5-minute cache without affecting other market tabs
+- **News source-health status** — Live, Partial, Cached, and Unavailable states with last-successful and last-attempted timestamps
 
 ### Removed
 
@@ -50,6 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Initialize-WorldMap` rewritten to support multiple styles, projections, overlays, and clustering
 - `Convert-LatLonToCanvas` updated with globe-mode routing and visibility flag
 - `Add-MapMarker` updated with offset and expanded-fan support
+
+## [0.9.1-beta] - 2026-04-03
+
+### Changed
+
+- Enforced PowerShell 7+ in the module manifest via `PowerShellVersion = '7.0'`
+- Added `#requires -Version 7.0` to public entry scripts to block Windows PowerShell 5.1 at runtime
+- Updated installation guidance to use `Install-Module PSExchangeClock -AllowPrerelease -Scope CurrentUser`
+- Updated `about_PSExchangeClock` requirements/help text to match PowerShell 7+ prerelease usage
 
 ## [1.0.0] - 2026-04-02
 

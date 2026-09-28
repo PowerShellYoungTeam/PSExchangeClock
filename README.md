@@ -39,7 +39,7 @@ A real-time WPF dashboard for monitoring global stock exchange closing times, li
 ## Quick Start
 
 ```powershell
-Install-Module PSExchangeClock -AllowPrerelease -Scope CurrentUser
+Install-Module PSExchangeClock -Scope CurrentUser
 Start-PSExchangeClock
 ```
 
@@ -71,7 +71,7 @@ Enter your keys in the **Settings** tab of the dashboard, or run `New-StockExcha
 ### From PowerShell Gallery (recommended)
 
 ```powershell
-Install-Module PSExchangeClock -AllowPrerelease -Scope CurrentUser
+Install-Module PSExchangeClock -Scope CurrentUser
 ```
 
 ### From Source

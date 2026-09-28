@@ -47,4 +47,14 @@ jobs:
               env:
                   PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
               run: |
-                  Publish-Module -Path ./PSExchangeClock -NuGetApiKey $env:PSGALLERY_API_KEY -AllowPrerelease -Verbose
+                  $manifest = Import-PowerShellDataFile -Path ./PSExchangeClock/PSExchangeClock.psd1
+                  $publishArgs = @{
+                      Path        = './PSExchangeClock'
+                      NuGetApiKey = $env:PSGALLERY_API_KEY
+                      Verbose     = $true
+                  }
+                  # -AllowPrerelease is only valid when the manifest declares a Prerelease string.
+                  if ($manifest.PrivateData.PSData.Prerelease) {
+                      $publishArgs.AllowPrerelease = $true
+                  }
+                  Publish-Module @publishArgs

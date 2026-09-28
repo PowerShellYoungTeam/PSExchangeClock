@@ -1,0 +1,6 @@
+title: PSExchangeClock
+description: A real-time WPF dashboard for global stock exchange countdowns, market data, and financial news — built entirely in PowerShell.
+theme: jekyll-theme-cayman
+show_downloads: true
+exclude:
+  - "New Feeds/"

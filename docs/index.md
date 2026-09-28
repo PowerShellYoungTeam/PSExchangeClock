@@ -28,7 +28,7 @@ Start-PSExchangeClock
 
 ## The origin story
 
-What started in 2021 as an 80-line countdown timer for the London Stock Exchange close grew — one exchange, one overlay, one feed at a time — into a full global markets dashboard, still just PowerShell and WPF, no compiled code. Read the [launch post]({{ site.baseurl }}/2026-04-02-introducing-psexchangeclock.html) for the full story.
+What started in 2021 as an 80-line countdown timer for the London Stock Exchange close grew — one exchange, one overlay, one feed at a time — into a full global markets dashboard, still just PowerShell and WPF, no compiled code.
 
 ## Links
 

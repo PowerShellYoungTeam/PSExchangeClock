@@ -1652,6 +1652,11 @@ public static class CredManager {
             $script:newsFilters.Categories = @($options.Categories)
             $script:newsFilters.Initialized = $true
         }
+        else {
+            # Drop selections for sources/categories no longer present in the catalog.
+            $script:newsFilters.Sources = @($script:newsFilters.Sources | Where-Object { $_ -in $options.Sources })
+            $script:newsFilters.Categories = @($script:newsFilters.Categories | Where-Object { $_ -in $options.Categories })
+        }
         return $options
     }
 
@@ -1758,8 +1763,8 @@ public static class CredManager {
         }
 
         $filteredNews = @($news | Where-Object {
-            @($script:newsFilters.Sources) -contains [string]$_.Source -and
-            @($script:newsFilters.Categories) -contains [string]$_.Category
+                @($script:newsFilters.Sources) -contains [string]$_.Source -and
+                @($script:newsFilters.Categories) -contains [string]$_.Category
             })
         if (-not $filteredNews) {
             $emptyFilter = New-Object System.Windows.Controls.TextBlock

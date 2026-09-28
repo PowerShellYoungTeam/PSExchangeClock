@@ -15,12 +15,12 @@ A real-time WPF dashboard for monitoring global stock exchange closing times, li
 - **Interactive world map** with clickable exchange markers — NASA Earth at Night satellite imagery or vector continent outlines, flat and globe projections, zoom & pan
 - **Map overlays** toggled from the toolbar:
   - *Geo* — day/night terminator, timezone bands, political borders, timezone boundaries
-  - *Live data* — earthquakes (USGS), volcanoes (Smithsonian GVP), conflict zones (UCDP/PRIO)
+  - *Live data* — earthquakes (USGS), volcanoes (Smithsonian GVP), natural events (GDACS and NASA EONET), conflict zones (UCDP/PRIO)
   - *Infrastructure* — submarine cables, power plants colour-coded by fuel type
   - Auto-displayed legend for conflict zones, power plants, and volcanoes
 - **World clocks** showing current times across six base time zones plus dynamic zones for active exchanges
 - **Market data sidebar** with tabbed content:
-  - Breaking financial news (Reuters, BBC, CNBC RSS feeds)
+  - Breaking financial news from the configurable `market-news-feeds.json` catalog (BBC Business, CNBC Markets, and EIA), with source/category filters, manual refresh, and live/degraded/cached status
   - Live forex rates (Frankfurter API / ECB XML fallback)
   - Cryptocurrency prices (CoinGecko API — top 10 coins)
   - Stock indices (S&P 500, NASDAQ Composite, DAX, FTSE 100, Nikkei 225 via ETF proxies)
@@ -136,7 +136,7 @@ Edit the `holidays.json` file in the module's `Data` directory to add market hol
 | Data | Source | Rate Limits |
 |------|--------|-------------|
 | Exchange hours | Wikipedia scrape / hardcoded fallback | N/A |
-| Financial news | Reuters, BBC, CNBC RSS feeds | Unlimited |
+| Financial news | BBC Business, CNBC Markets, and U.S. EIA RSS feeds configured in `market-news-feeds.json` | Varies by provider |
 | Forex rates | [Frankfurter API](https://www.frankfurter.app/) / ECB XML | Unlimited |
 | Cryptocurrency | [CoinGecko API](https://www.coingecko.com/) | Unlimited |
 | Indices & Commodities | [Twelve Data API](https://twelvedata.com/) | 800 req/day |
@@ -144,6 +144,7 @@ Edit the `holidays.json` file in the module's `Data` directory to add market hol
 | World map image | [NASA GSFC Earth at Night](https://earthobservatory.nasa.gov/) | One-time download |
 | Earthquakes | [USGS Earthquake Hazards](https://earthquake.usgs.gov/) | Unlimited |
 | Volcanoes | [Smithsonian GVP](https://volcano.si.edu/) | Unlimited |
+| Natural events | [GDACS](https://www.gdacs.org/) and [NASA EONET](https://eonet.gsfc.nasa.gov/) configured in `map-event-feeds.json` | Varies by provider |
 | Conflict zones | [UCDP/PRIO](https://ucdp.uu.se/) | Bundled data |
 | Power plants | [WRI Global Power Plant Database](https://datasets.wri.org/datasets/global-power-plant-database) | Bundled data |
 | Submarine cables | [TeleGeography](https://www.submarinecablemap.com/) | Bundled data |

@@ -29,8 +29,8 @@ LONG DESCRIPTION
         - Auto-displayed legend for conflict zones, power plants, and
           volcanoes
 
-    * World clocks showing current times across six base time zones plus
-      dynamic zones for active exchanges
+    * World clocks showing current times for seven base clocks (including
+      København) plus dynamic zones for active exchanges
 
     * A market data sidebar with tabbed content:
         - Breaking financial news (Reuters, BBC, CNBC RSS feeds)

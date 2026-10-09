@@ -2478,6 +2478,7 @@ public static class CredManager {
         @{ Label = 'New York'; TzId = 'Eastern Standard Time'; Abbrev = 'ET' },
         @{ Label = 'London'; TzId = 'GMT Standard Time'; Abbrev = 'GMT' },
         @{ Label = 'Frankfurt'; TzId = 'W. Europe Standard Time'; Abbrev = 'CET' },
+        @{ Label = 'København'; TzId = 'Romance Standard Time'; Abbrev = 'CET' },
         @{ Label = 'Tokyo'; TzId = 'Tokyo Standard Time'; Abbrev = 'JST' },
         @{ Label = 'Hong Kong'; TzId = 'China Standard Time'; Abbrev = 'HKT' },
         @{ Label = 'Sydney'; TzId = 'AUS Eastern Standard Time'; Abbrev = 'AEST' }

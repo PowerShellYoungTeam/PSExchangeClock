@@ -18,7 +18,7 @@ A real-time WPF dashboard for monitoring global stock exchange closing times, li
   - *Live data* — earthquakes (USGS), volcanoes (Smithsonian GVP), natural events (GDACS and NASA EONET), conflict zones (UCDP/PRIO)
   - *Infrastructure* — submarine cables, power plants colour-coded by fuel type
   - Auto-displayed legend for conflict zones, power plants, and volcanoes
-- **World clocks** showing current times across six base time zones plus dynamic zones for active exchanges
+- **World clocks** showing current times for seven base clocks (New York, London, Frankfurt, København, Tokyo, Hong Kong, Sydney) plus dynamic zones for active exchanges
 - **Market data sidebar** with tabbed content:
   - Breaking financial news from the configurable `market-news-feeds.json` catalog (BBC Business, CNBC Markets, and EIA), with source/category filters, manual refresh, and live/degraded/cached status
   - Live forex rates (Frankfurter API / ECB XML fallback)

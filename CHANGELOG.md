@@ -5,6 +5,12 @@ All notable changes to PSExchangeClock will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Danish krone (DKK) and Swedish krona (SEK) on the FX tab. The UAE dirham (AED) was considered but is not published by the ECB reference rates the FX tab uses (Frankfurter v1 and the ECB XML fallback)
+
 ## [1.1.0] - 2026-09-28
 
 ### Fixed

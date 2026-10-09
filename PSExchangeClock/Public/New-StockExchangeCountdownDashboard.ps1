@@ -1142,7 +1142,9 @@ public static class CredManager {
             return $script:fxCache.Data
         }
 
-        $allCurrencies = @('USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'CNY', 'HKD', 'SGD', 'KRW', 'INR', 'BRL', 'ZAR', 'MXN')
+        # AED (UAE dirham) is not offered: neither Frankfurter v1 (ECB reference rates)
+        # nor the ECB XML fallback publishes it; only Frankfurter v2's blended rates do
+        $allCurrencies = @('USD', 'EUR', 'GBP', 'JPY', 'CHF', 'DKK', 'SEK', 'CAD', 'AUD', 'CNY', 'HKD', 'SGD', 'KRW', 'INR', 'BRL', 'ZAR', 'MXN')
         $currencies = ($allCurrencies | Where-Object { $_ -ne $BaseCurrency }) -join ','
 
         # Try Frankfurter API first

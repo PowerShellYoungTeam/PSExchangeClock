@@ -9,7 +9,7 @@ function New-StockExchangeCountdownDashboard {
     live market data. Built in PowerShell with a professional dark-themed interface.
 
     Features include:
-    - Live countdown timers with color-coded status for 20 major exchanges worldwide
+    - Live countdown timers with color-coded status for 21 major exchanges worldwide
     - Interactive world map with clickable exchange markers (NASA Earth at Night imagery)
     - World clocks across multiple time zones
     - Market data sidebar: financial news (RSS), forex rates, cryptocurrency prices,
@@ -143,8 +143,17 @@ function New-StockExchangeCountdownDashboard {
             if ($chkNotify15 -and $chkNotify15.IsChecked) { $prefs.NotifyThresholds += 15 }
             if ($chkNotify5 -and $chkNotify5.IsChecked) { $prefs.NotifyThresholds += 5 }
             if ($chkAlwaysOnTop) { $prefs.AlwaysOnTop = [bool]$chkAlwaysOnTop.IsChecked }
+            if ($cmbMapStyle -and $cmbMapStyle.SelectedItem) { $prefs.MapStyle = [string]$cmbMapStyle.SelectedItem.Tag }
+            if ($script:mapProjection) { $prefs.MapProjection = [string]$script:mapProjection }
+            if ($script:mapOverlayToggles) {
+                $prefs.MapOverlays = @($script:mapOverlayToggles.Keys | Where-Object { $script:mapOverlayToggles[$_].IsChecked })
+            }
         }
         catch { }
+        # No UI for EnabledIndices yet: carry the hand-edited value through each save
+        if ($script:userPrefs -and $script:userPrefs.EnabledIndices) {
+            $prefs.EnabledIndices = @($script:userPrefs.EnabledIndices)
+        }
         # API keys are stored via the secrets backend, not in JSON
         $prefs | ConvertTo-Json -Depth 3 | Set-Content -Path $prefsPath -Encoding UTF8
     }
@@ -348,67 +357,8 @@ public static class CredManager {
 
     function Get-ExchangeStatus {
         param([PSCustomObject]$Exchange)
-
-        $localNow = Get-ExchangeLocalTime -Exchange $Exchange
-        $dayOfWeek = $localNow.DayOfWeek
-
-        # Weekend check
-        if ($dayOfWeek -eq 'Saturday' -or $dayOfWeek -eq 'Sunday') {
-            return @{ Status = 'Closed'; Text = 'Weekend'; TimeRemaining = $null; CountdownTarget = $null }
-        }
-
-        # Holiday check
-        $todayStr = $localNow.ToString('yyyy-MM-dd')
-        if ($holidays.ContainsKey($Exchange.Code) -and $holidays[$Exchange.Code] -contains $todayStr) {
-            return @{ Status = 'Holiday'; Text = 'Holiday - Closed'; TimeRemaining = $null; CountdownTarget = $null }
-        }
-
-        # Parse times
-        $openParts = $Exchange.OpenTimeLocal -split ':'
-        $closeParts = $Exchange.CloseTimeLocal -split ':'
-        $openTime = $localNow.Date.AddHours([int]$openParts[0]).AddMinutes([int]$openParts[1])
-        $closeTime = $localNow.Date.AddHours([int]$closeParts[0]).AddMinutes([int]$closeParts[1])
-
-        # Lunch break
-        $lunchStart = $null
-        $lunchEnd = $null
-        if ($Exchange.LunchBreakStart -and $Exchange.LunchBreakEnd) {
-            $lsParts = $Exchange.LunchBreakStart -split ':'
-            $leParts = $Exchange.LunchBreakEnd -split ':'
-            $lunchStart = $localNow.Date.AddHours([int]$lsParts[0]).AddMinutes([int]$lsParts[1])
-            $lunchEnd = $localNow.Date.AddHours([int]$leParts[0]).AddMinutes([int]$leParts[1])
-        }
-
-        # Pre-market
-        if ($localNow -lt $openTime) {
-            $remaining = $openTime - $localNow
-            return @{ Status = 'PreMarket'; Text = "Opens in $("{0:D2}:{1:D2}:{2:D2}" -f [int]$remaining.TotalHours, $remaining.Minutes, $remaining.Seconds)"; TimeRemaining = $remaining; CountdownTarget = 'Open' }
-        }
-
-        # Post-close
-        if ($localNow -ge $closeTime) {
-            return @{ Status = 'Closed'; Text = 'Closed'; TimeRemaining = $null; CountdownTarget = $null }
-        }
-
-        # Lunch break
-        if ($lunchStart -and $lunchEnd -and $localNow -ge $lunchStart -and $localNow -lt $lunchEnd) {
-            $remaining = $lunchEnd - $localNow
-            return @{ Status = 'LunchBreak'; Text = "Lunch - Reopens in $("{0:D2}:{1:D2}:{2:D2}" -f [int]$remaining.TotalHours, $remaining.Minutes, $remaining.Seconds)"; TimeRemaining = $remaining; CountdownTarget = 'Reopen' }
-        }
-
-        # Open — countdown to close (skip lunch if applicable)
-        $remaining = $closeTime - $localNow
-        $countdownStr = "{0:D2}:{1:D2}:{2:D2}" -f [int]$remaining.TotalHours, $remaining.Minutes, $remaining.Seconds
-
-        if ($remaining.TotalMinutes -le 5) {
-            return @{ Status = 'ClosingImminent'; Text = "Closes in $countdownStr"; TimeRemaining = $remaining; CountdownTarget = 'Close' }
-        }
-        elseif ($remaining.TotalMinutes -le 30) {
-            return @{ Status = 'ClosingSoon'; Text = "Closes in $countdownStr"; TimeRemaining = $remaining; CountdownTarget = 'Close' }
-        }
-        else {
-            return @{ Status = 'Open'; Text = "Closes in $countdownStr"; TimeRemaining = $remaining; CountdownTarget = 'Close' }
-        }
+        # Status logic lives in Private/Get-ExchangeSessionStatus.ps1 so it can be tested without WPF
+        Get-ExchangeSessionStatus -Exchange $Exchange -UtcNow ([DateTime]::UtcNow) -Holidays $holidays
     }
 
     function Get-StatusColor {
@@ -995,6 +945,38 @@ public static class CredManager {
     }
     $cmbMapProjection.SelectedIndex = 0
 
+    # Overlay toggles by preference name (MapOverlays in user-preferences.json)
+    $script:mapOverlayToggles = [ordered]@{
+        DayNight           = $chkTerminator
+        TimeZoneBands      = $chkTimeZoneBands
+        PoliticalBorders   = $chkPoliticalBounds
+        TimeZoneBoundaries = $chkTZBoundaries
+        Earthquakes        = $chkEarthquakes
+        Volcanoes          = $chkVolcanoes
+        NaturalEvents      = $chkNaturalEvents
+        ConflictZones      = $chkConflictZones
+        SubmarineCables    = $chkSubmarineCables
+        PowerPlants        = $chkPowerPlants
+    }
+
+    # Restore saved map settings (runs before the change handlers are attached, so no redraws)
+    $mapState = Get-MapPreferenceState -UserPreferences $script:userPrefs `
+        -ValidStyles @($mapStyleOptions | ForEach-Object { $_.Value }) `
+        -ValidProjections @($projOptions | ForEach-Object { $_.Value }) `
+        -OverlayNames @($script:mapOverlayToggles.Keys)
+    if ($mapState.Style) {
+        $cmbMapStyle.SelectedIndex = [array]::IndexOf(@($mapStyleOptions | ForEach-Object { $_.Value }), $mapState.Style)
+    }
+    if ($mapState.Projection) {
+        $cmbMapProjection.SelectedIndex = [array]::IndexOf(@($projOptions | ForEach-Object { $_.Value }), $mapState.Projection)
+        $script:mapProjection = $mapState.Projection
+    }
+    if ($null -ne $mapState.Overlays) {
+        foreach ($name in $script:mapOverlayToggles.Keys) {
+            $script:mapOverlayToggles[$name].IsChecked = $mapState.Overlays -contains $name
+        }
+    }
+
     # ── Market Data Cache ─────────────────────────────────────────
 
     $script:newsCache = @{
@@ -1009,6 +991,7 @@ public static class CredManager {
     $script:fxCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
     $script:cryptoCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
     $script:indicesCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
+    $script:indexQuoteCache = @{}
     $script:commoditiesCache = @{ Data = $null; LastFetch = [datetime]::MinValue }
     $script:stockQuoteCache = @{}
 
@@ -1247,64 +1230,82 @@ public static class CredManager {
         param([string]$ApiKey)
         if ([string]::IsNullOrWhiteSpace($ApiKey)) { return $null }
 
+        $definitions = @(Get-IndexDefinition)
+
         # Check cache (15 minute TTL)
         if ($script:indicesCache.Data -and ([datetime]::Now - $script:indicesCache.LastFetch).TotalMinutes -lt 15) {
-            return $script:indicesCache.Data
+            $result = @($script:indicesCache.Data)
         }
+        else {
+            # Free tier: index symbols (SPX, DJI etc.) require paid plans.
+            # Use index-tracking ETFs which are available on the free tier.
+            $indices = @($definitions | Where-Object { $_.Kind -eq 'EtfProxy' })
 
-        # Free tier: index symbols (SPX, DJI etc.) require paid plans.
-        # Use index-tracking ETFs which are available on the free tier.
-        $indices = @(
-            @{ Symbol = 'SPY'; Name = 'S&P 500 (SPY)' },
-            @{ Symbol = 'QQQ'; Name = 'NASDAQ 100 (QQQ)' },
-            @{ Symbol = 'DIA'; Name = 'Dow Jones (DIA)' },
-            @{ Symbol = 'EWU'; Name = 'FTSE 100 (EWU)' },
-            @{ Symbol = 'EWG'; Name = 'DAX (EWG)' },
-            @{ Symbol = 'EWJ'; Name = 'Nikkei 225 (EWJ)' },
-            @{ Symbol = 'FXI'; Name = 'China Large-Cap (FXI)' },
-            @{ Symbol = 'INDA'; Name = 'India (INDA)' }
-        )
+            # Fetch in small batches to stay within 8 credits/min free tier limit
+            $result = @()
+            $batches = @()
+            for ($i = 0; $i -lt $indices.Count; $i += 8) {
+                $batch = $indices[$i..([math]::Min($i + 7, $indices.Count - 1))]
+                $batches += , @($batch)
+            }
 
-        # Fetch in small batches to stay within 8 credits/min free tier limit
-        $result = @()
-        $batches = @()
-        for ($i = 0; $i -lt $indices.Count; $i += 8) {
-            $batch = $indices[$i..([math]::Min($i + 7, $indices.Count - 1))]
-            $batches += , @($batch)
-        }
-
-        try {
-            foreach ($batch in $batches) {
-                $symbolList = ($batch | ForEach-Object { $_.Symbol }) -join ','
-                $url = "https://api.twelvedata.com/quote?symbol=$symbolList&apikey=$ApiKey"
-                $response = Invoke-RestMethod -Uri $url -TimeoutSec 15
-                foreach ($idx in $batch) {
-                    # Single symbol returns data directly; multiple returns keyed object
-                    $data = if ($batch.Count -eq 1) { $response } else { $response.($idx.Symbol) }
-                    if ($data -and $data.close -and -not $data.code) {
-                        $change = 0
-                        if ($data.previous_close -and [double]$data.previous_close -ne 0) {
-                            $change = [math]::Round((([double]$data.close - [double]$data.previous_close) / [double]$data.previous_close) * 100, 2)
-                        }
-                        $result += [PSCustomObject]@{
-                            Symbol = $idx.Symbol
-                            Name   = $idx.Name
-                            Price  = [math]::Round([double]$data.close, 2)
-                            Change = $change
+            try {
+                foreach ($batch in $batches) {
+                    $symbolList = ($batch | ForEach-Object { $_.Symbol }) -join ','
+                    $url = "https://api.twelvedata.com/quote?symbol=$symbolList&apikey=$ApiKey"
+                    $response = Invoke-RestMethod -Uri $url -TimeoutSec 15
+                    foreach ($idx in $batch) {
+                        # Single symbol returns data directly; multiple returns keyed object
+                        $data = if ($batch.Count -eq 1) { $response } else { $response.($idx.Symbol) }
+                        if ($data -and $data.close -and -not $data.code) {
+                            $change = 0
+                            if ($data.previous_close -and [double]$data.previous_close -ne 0) {
+                                $change = [math]::Round((([double]$data.close - [double]$data.previous_close) / [double]$data.previous_close) * 100, 2)
+                            }
+                            $result += [PSCustomObject]@{
+                                Symbol = $idx.Symbol
+                                Name   = $idx.Name
+                                Price  = [math]::Round([double]$data.close, 2)
+                                Change = $change
+                            }
                         }
                     }
                 }
+                if ($result.Count -gt 0) {
+                    $script:indicesCache.Data = $result
+                    $script:indicesCache.LastFetch = [datetime]::Now
+                }
             }
-            if ($result.Count -gt 0) {
-                $script:indicesCache.Data = $result
-                $script:indicesCache.LastFetch = [datetime]::Now
+            catch {
+                Write-Verbose "Twelve Data API failed: $($_.Exception.Message)"
+                $result = @()
             }
-            return $result
         }
-        catch {
-            Write-Verbose "Twelve Data API failed: $($_.Exception.Message)"
-            return $null
+
+        # True index symbols are fetched one at a time with their own cache, so a
+        # plan restriction (e.g. OMXC25 needs Twelve Data Pro) never affects the ETFs
+        foreach ($def in @($definitions | Where-Object { $_.Kind -eq 'Index' })) {
+            if (-not (Test-IndexEnabled -Definition $def -UserPreferences $script:userPrefs)) {
+                # Turned off (e.g. needs a paid plan): shown with a note, never requested
+                $result += [PSCustomObject]@{
+                    Symbol = $def.Symbol; Name = $def.Name; Price = $null; Change = $null
+                    Definition = $def; CacheEntry = $null; Disabled = $true
+                }
+                continue
+            }
+            $entry = Get-CachedIndexQuote -Definition $def -ApiKey $ApiKey -Cache $script:indexQuoteCache
+            $result += [PSCustomObject]@{
+                Symbol     = $def.Symbol
+                Name       = $def.Name
+                Price      = if ($entry.LastGood) { $entry.LastGood.Price } else { $null }
+                Change     = if ($entry.LastGood) { $entry.LastGood.Change } else { $null }
+                Definition = $def
+                CacheEntry = $entry
+                Disabled   = $false
+            }
         }
+
+        return $result
     }
 
     function Get-CommodityPrices {
@@ -1993,17 +1994,19 @@ public static class CredManager {
             return
         }
 
-        $indices = Get-StockIndices -ApiKey $apiKey
-        if (-not $indices -or $indices.Count -eq 0) {
+        $indices = @(Get-StockIndices -ApiKey $apiKey)
+        $etfRows = @($indices | Where-Object { -not $_.Definition })
+        $indexRows = @($indices | Where-Object { $_.Definition })
+        if ($etfRows.Count -eq 0) {
             $lbl = New-Object System.Windows.Controls.TextBlock
             $lbl.Text = 'Index data unavailable — may be rate-limited (8 req/min free tier). Try again in a minute.'
             $lbl.Foreground = $Converter.ConvertFromString('#888888'); $lbl.FontSize = 11; $lbl.TextWrapping = 'Wrap'
             $lbl.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
             $marketDataContent.Children.Add($lbl) | Out-Null
-            return
+            if ($indexRows.Count -eq 0) { return }
         }
 
-        foreach ($idx in $indices) {
+        foreach ($idx in $etfRows) {
             $changeColor = if ($idx.Change -ge 0) { '#00CC66' } else { '#FF4444' }
             $arrow = if ($idx.Change -ge 0) { [char]0x25B2 } else { [char]0x25BC }
 
@@ -2039,9 +2042,122 @@ public static class CredManager {
             $marketDataContent.Children.Add($grid) | Out-Null
         }
 
+        # True indices (e.g. OMXC25) with quote status from their home exchange
+        foreach ($idx in $indexRows) {
+            Add-MarketSeparator -Converter $Converter
+            $def = $idx.Definition
+            if ($idx.Disabled) {
+                $lblName = New-Object System.Windows.Controls.TextBlock
+                $lblName.Text = "$($idx.Name) — $($def.Country)"; $lblName.FontSize = 11
+                $lblName.Foreground = $Converter.ConvertFromString('#777777')
+                $marketDataContent.Children.Add($lblName) | Out-Null
+                $lblNote = New-Object System.Windows.Controls.TextBlock
+                $lblNote.Text = $def.DisabledReason
+                $lblNote.FontSize = 9; $lblNote.TextWrapping = 'Wrap'
+                $lblNote.Foreground = $Converter.ConvertFromString('#888888')
+                $lblNote.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
+                $marketDataContent.Children.Add($lblNote) | Out-Null
+                continue
+            }
+            $entry = $idx.CacheEntry
+            $exRow = $script:exchangeRows | Where-Object { $_.Code -eq $def.ExchangeCode } | Select-Object -First 1
+            $marketStatus = 'Closed'
+            $exName = $def.ExchangeCode
+            $exTz = $null
+            if ($exRow) {
+                $exName = $exRow.DisplayName
+                $exTz = $exRow.TimeZoneId
+                $exObj = [PSCustomObject]@{
+                    TimeZoneId = $exRow.TimeZoneId; OpenTimeLocal = $exRow.OpenTime; CloseTimeLocal = $exRow.CloseTime
+                    LunchBreakStart = $exRow.LunchBreakStart; LunchBreakEnd = $exRow.LunchBreakEnd; Code = $exRow.Code
+                    OpeningAuctionStart = $exRow.OpeningAuctionStart
+                    ClosingAuctionStart = $exRow.ClosingAuctionStart
+                }
+                $marketStatus = (Get-ExchangeStatus -Exchange $exObj).Status
+            }
+            $quoteTime = if ($entry.LastGood) { $entry.LastGood.QuoteTimeUtc } else { $null }
+            $hasQuote = [bool]$entry.LastGood
+            $qs = if ($hasQuote -and -not $quoteTime) {
+                # Price without a provider timestamp: age cannot be judged, so never show it as current
+                @{ Status = 'Stale'; Label = 'Quote time unknown' }
+            }
+            else {
+                Get-IndexQuoteStatus -QuoteTimeUtc $quoteTime -MarketStatus $marketStatus
+            }
+
+            $grid = New-Object System.Windows.Controls.Grid
+            $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+            $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
+            $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = [System.Windows.GridLength]::new(0, [System.Windows.GridUnitType]::Auto)
+            $grid.ColumnDefinitions.Add($c1); $grid.ColumnDefinitions.Add($c2); $grid.ColumnDefinitions.Add($c3)
+            $grid.Margin = [System.Windows.Thickness]::new(0, 0, 0, 2)
+
+            $lblName = New-Object System.Windows.Controls.TextBlock
+            $lblName.Text = $idx.Name; $lblName.FontSize = 11
+            $lblName.Foreground = $Converter.ConvertFromString('#E0E0E0'); $lblName.VerticalAlignment = 'Center'
+            [System.Windows.Controls.Grid]::SetColumn($lblName, 0)
+            $grid.Children.Add($lblName) | Out-Null
+
+            # Stale and unavailable values are greyed out so they are not mistaken for current data
+            $priceColor = if ($qs.Status -in @('Intraday', 'LastClose')) { '#E0E0E0' } else { '#777777' }
+            $lblPrice = New-Object System.Windows.Controls.TextBlock
+            $lblPrice.Text = if ($hasQuote) { "$($def.Currency) $($idx.Price.ToString('N2'))" } else { [string][char]0x2014 }
+            $lblPrice.FontSize = 11
+            $lblPrice.Foreground = $Converter.ConvertFromString($priceColor)
+            $lblPrice.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas'); $lblPrice.HorizontalAlignment = 'Right'
+            $lblPrice.VerticalAlignment = 'Center'
+            [System.Windows.Controls.Grid]::SetColumn($lblPrice, 1)
+            $grid.Children.Add($lblPrice) | Out-Null
+
+            if ($hasQuote) {
+                $changeColor = if ($qs.Status -notin @('Intraday', 'LastClose')) { '#777777' } elseif ($idx.Change -ge 0) { '#00CC66' } else { '#FF4444' }
+                $arrow = if ($idx.Change -ge 0) { [char]0x25B2 } else { [char]0x25BC }
+                $lblChange = New-Object System.Windows.Controls.TextBlock
+                $lblChange.Text = " $arrow $($idx.Change)%"; $lblChange.FontSize = 10
+                $lblChange.Foreground = $Converter.ConvertFromString($changeColor)
+                $lblChange.FontFamily = [System.Windows.Media.FontFamily]::new('Consolas')
+                $lblChange.VerticalAlignment = 'Center'; $lblChange.Margin = [System.Windows.Thickness]::new(6, 0, 0, 0)
+                [System.Windows.Controls.Grid]::SetColumn($lblChange, 2)
+                $grid.Children.Add($lblChange) | Out-Null
+            }
+            $marketDataContent.Children.Add($grid) | Out-Null
+
+            # Status line: market, quote status, quote time in exchange-local time, last error
+            $parts = @("$exName, $($def.Country)", $qs.Label)
+            if ($quoteTime) {
+                $shown = $quoteTime
+                $tzLabel = 'UTC'
+                if ($exTz) {
+                    try {
+                        $tzInfo = [System.TimeZoneInfo]::FindSystemTimeZoneById($exTz)
+                        $shown = [System.TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::SpecifyKind($quoteTime, 'Utc'), $tzInfo)
+                        $tzLabel = "$($exRow.City) time"
+                    }
+                    catch { Write-Verbose "Quote time shown in UTC; timezone $exTz unavailable: $($_.Exception.Message)" }
+                }
+                $parts += "as of $($shown.ToString('dd MMM HH:mm')) $tzLabel"
+            }
+            if ($entry.Blocked -and $entry.ErrorCode -eq 403) {
+                $parts += 'Requires a Twelve Data Pro plan or higher (HTTP 403)'
+            }
+            elseif ($entry.Blocked) {
+                $parts += "Not available from provider ($($entry.ErrorCode)): $($entry.LastError)"
+            }
+            elseif ($entry.LastError) {
+                $errCode = if ($entry.ErrorCode) { " ($($entry.ErrorCode))" } else { '' }
+                $parts += "Last refresh failed$errCode — retrying in 15 min"
+            }
+            $lblStatus = New-Object System.Windows.Controls.TextBlock
+            $lblStatus.Text = $parts -join ' · '
+            $lblStatus.FontSize = 9; $lblStatus.TextWrapping = 'Wrap'
+            $lblStatus.Foreground = $Converter.ConvertFromString('#888888')
+            $lblStatus.Margin = [System.Windows.Thickness]::new(0, 0, 0, 4)
+            $marketDataContent.Children.Add($lblStatus) | Out-Null
+        }
+
         Add-MarketSeparator -Converter $Converter
         $footer = New-Object System.Windows.Controls.TextBlock
-        $footer.Text = "Source: Twelve Data (ETF proxies) | Updated: $(Format-RelativeTime -Time $script:indicesCache.LastFetch)"
+        $footer.Text = "Source: Twelve Data (ETF proxies; OMXC25 index) | Updated: $(Format-RelativeTime -Time $script:indicesCache.LastFetch)"
         $footer.FontSize = 9; $footer.Foreground = $Converter.ConvertFromString('#555555')
         $footer.TextWrapping = 'Wrap'
         $marketDataContent.Children.Add($footer) | Out-Null
@@ -2441,11 +2557,8 @@ public static class CredManager {
     $script:notificationsFired = @{}
 
     foreach ($ex in $allExchanges) {
-        $isActive = $ex.IsDefault
-        # Apply saved preferences if available
-        if ($script:userPrefs -and $script:userPrefs.ActiveExchanges) {
-            $isActive = $script:userPrefs.ActiveExchanges -contains $ex.Code
-        }
+        # Saved preferences win; exchanges absent from them stay inactive
+        $isActive = Test-ExchangeActive -Exchange $ex -UserPreferences $script:userPrefs
         $row = [PSCustomObject]@{
             DisplayName      = $ex.Name
             Code             = $ex.Code
@@ -2457,6 +2570,8 @@ public static class CredManager {
             CloseTime        = $ex.CloseTimeLocal
             LunchBreakStart  = $ex.LunchBreakStart
             LunchBreakEnd    = $ex.LunchBreakEnd
+            OpeningAuctionStart = $ex.OpeningAuctionStart
+            ClosingAuctionStart = $ex.ClosingAuctionStart
             Latitude         = $ex.Latitude
             Longitude        = $ex.Longitude
             IsActive         = $isActive
@@ -2608,6 +2723,8 @@ public static class CredManager {
             $exObj = [PSCustomObject]@{
                 TimeZoneId = $row.TimeZoneId; OpenTimeLocal = $row.OpenTime; CloseTimeLocal = $row.CloseTime
                 LunchBreakStart = $row.LunchBreakStart; LunchBreakEnd = $row.LunchBreakEnd; Code = $row.Code
+                OpeningAuctionStart = $row.OpeningAuctionStart
+                ClosingAuctionStart = $row.ClosingAuctionStart
             }
             $si = Get-ExchangeStatus -Exchange $exObj
             $rank = $priority.IndexOf($si.Status)
@@ -4229,6 +4346,8 @@ public static class CredManager {
             CloseTimeLocal  = $row.CloseTime
             LunchBreakStart = $row.LunchBreakStart
             LunchBreakEnd   = $row.LunchBreakEnd
+            OpeningAuctionStart = $row.OpeningAuctionStart
+            ClosingAuctionStart = $row.ClosingAuctionStart
             Code            = $row.Code
         }
         $statusInfo = Get-ExchangeStatus -Exchange $exObj
@@ -4283,6 +4402,12 @@ public static class CredManager {
         Add-FlyoutRow -Label 'Countdown' -Value $row.CountdownText -ValueColor $statusColor
         Add-FlyoutRow -Label 'Local Time' -Value $row.CurrentLocalTime
         Add-FlyoutRow -Label 'Hours' -Value "$($row.OpenTime) – $($row.CloseTime)"
+        if ($row.OpeningAuctionStart) {
+            Add-FlyoutRow -Label 'Opening Auction' -Value "$($row.OpeningAuctionStart) – $($row.OpenTime)"
+        }
+        if ($row.ClosingAuctionStart) {
+            Add-FlyoutRow -Label 'Closing Auction' -Value "$($row.ClosingAuctionStart) – $($row.CloseTime) (no continuous trading)"
+        }
         Add-FlyoutRow -Label 'Location' -Value "$($row.City), $($row.Country)"
 
         # Divider
@@ -4534,6 +4659,8 @@ public static class CredManager {
                 CloseTimeLocal  = $row.CloseTime
                 LunchBreakStart = $row.LunchBreakStart
                 LunchBreakEnd   = $row.LunchBreakEnd
+                OpeningAuctionStart = $row.OpeningAuctionStart
+                ClosingAuctionStart = $row.ClosingAuctionStart
                 Code            = $row.Code
             }
 
@@ -4545,7 +4672,7 @@ public static class CredManager {
             $row.StatusColor = $color
 
             if ($statusInfo.TimeRemaining) {
-                $row.CountdownText = "{0:D2}:{1:D2}:{2:D2}" -f [int]$statusInfo.TimeRemaining.TotalHours, $statusInfo.TimeRemaining.Minutes, $statusInfo.TimeRemaining.Seconds
+                $row.CountdownText = Format-CountdownSpan -TimeSpan $statusInfo.TimeRemaining
             }
             else {
                 $row.CountdownText = '--:--:--'
@@ -4611,7 +4738,7 @@ public static class CredManager {
 
         # Update status bar
         if ($nextCloseExchange -and $nextCloseRemaining) {
-            $ncs = "{0:D2}:{1:D2}:{2:D2}" -f [int]$nextCloseRemaining.TotalHours, $nextCloseRemaining.Minutes, $nextCloseRemaining.Seconds
+            $ncs = Format-CountdownSpan -TimeSpan $nextCloseRemaining
             $txtNextClose.Text = "Next close: $nextCloseExchange in $ncs"
             $window.Title = "PSExchangeClock — Next: $nextCloseExchange $ncs"
         }
@@ -4737,7 +4864,7 @@ public static class CredManager {
     # ── Map Toolbar Event Handlers ────────────────────────────────
 
     # Map style ComboBox
-    $cmbMapStyle.Add_SelectionChanged({ Initialize-WorldMap })
+    $cmbMapStyle.Add_SelectionChanged({ Initialize-WorldMap; Save-UserPreferences })
 
     # Map projection ComboBox
     $cmbMapProjection.Add_SelectionChanged({
@@ -4746,30 +4873,31 @@ public static class CredManager {
                 $script:mapProjection = $sel.Tag
                 $script:expandedCluster = $null
                 Initialize-WorldMap
+                Save-UserPreferences
             }
         })
 
     # Overlay toggles
-    $chkTerminator.Add_Checked({ Initialize-WorldMap })
-    $chkTerminator.Add_Unchecked({ Initialize-WorldMap })
-    $chkTimeZoneBands.Add_Checked({ Initialize-WorldMap })
-    $chkTimeZoneBands.Add_Unchecked({ Initialize-WorldMap })
-    $chkPoliticalBounds.Add_Checked({ Initialize-WorldMap })
-    $chkPoliticalBounds.Add_Unchecked({ Initialize-WorldMap })
-    $chkEarthquakes.Add_Checked({ Initialize-WorldMap })
-    $chkEarthquakes.Add_Unchecked({ Initialize-WorldMap })
-    $chkVolcanoes.Add_Checked({ Initialize-WorldMap })
-    $chkVolcanoes.Add_Unchecked({ Initialize-WorldMap })
-    $chkNaturalEvents.Add_Checked({ Initialize-WorldMap })
-    $chkNaturalEvents.Add_Unchecked({ Initialize-WorldMap })
-    $chkSubmarineCables.Add_Checked({ Initialize-WorldMap })
-    $chkSubmarineCables.Add_Unchecked({ Initialize-WorldMap })
-    $chkPowerPlants.Add_Checked({ Initialize-WorldMap })
-    $chkPowerPlants.Add_Unchecked({ Initialize-WorldMap })
-    $chkTZBoundaries.Add_Checked({ Initialize-WorldMap })
-    $chkTZBoundaries.Add_Unchecked({ Initialize-WorldMap })
-    $chkConflictZones.Add_Checked({ Initialize-WorldMap })
-    $chkConflictZones.Add_Unchecked({ Initialize-WorldMap })
+    $chkTerminator.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTerminator.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTimeZoneBands.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTimeZoneBands.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPoliticalBounds.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPoliticalBounds.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkEarthquakes.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkEarthquakes.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkVolcanoes.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkVolcanoes.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkNaturalEvents.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkNaturalEvents.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkSubmarineCables.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkSubmarineCables.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPowerPlants.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPowerPlants.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTZBoundaries.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTZBoundaries.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkConflictZones.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkConflictZones.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
 
     # Overlays flyout popup toggle
     $btnOverlays.Add_Checked({

@@ -5,7 +5,7 @@ title: PSExchangeClock
 
 # PSExchangeClock
 
-**A real-time WPF dashboard for monitoring 20 global stock exchange closing times, live market data, forex, cryptocurrency, commodities, indices, and financial news — built entirely in PowerShell.**
+**A real-time WPF dashboard for monitoring 21 global stock exchange closing times, live market data, forex, cryptocurrency, commodities, indices, and financial news — built entirely in PowerShell.**
 
 [![PowerShell Gallery Version](https://img.shields.io/powershellgallery/v/PSExchangeClock)](https://www.powershellgallery.com/packages/PSExchangeClock)
 [![PowerShell Gallery Downloads](https://img.shields.io/powershellgallery/dt/PSExchangeClock)](https://www.powershellgallery.com/packages/PSExchangeClock)
@@ -20,7 +20,7 @@ Start-PSExchangeClock
 
 ## What it does
 
-- **Live countdown timers** with color-coded status (green → yellow → red → purple for holidays) for 20 major exchanges worldwide
+- **Live countdown timers** with color-coded status (green → yellow → red → purple for holidays) for 21 major exchanges worldwide
 - **Interactive world map** — NASA Earth at Night imagery, flat and globe projections, zoom & pan, clickable exchange markers
 - **Map overlays** — day/night terminator, timezone bands and boundaries, political borders, earthquakes, volcanoes, natural events, conflict zones, submarine cables, and power plants
 - **Market data sidebar** — catalog-driven financial news with source/category filters and manual refresh, live forex, crypto, indices, commodities, and individual stock quotes

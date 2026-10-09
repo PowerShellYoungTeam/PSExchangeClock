@@ -302,6 +302,23 @@
       "Latitude": 55.7558,
       "Longitude": 37.6173,
       "IsDefault": false
+    },
+    {
+      "Name": "Nasdaq Copenhagen",
+      "Code": "XCSE",
+      "Symbol": "OMXC",
+      "Country": "Denmark",
+      "City": "Copenhagen",
+      "TimeZoneId": "Romance Standard Time",
+      "OpenTimeLocal": "09:00",
+      "CloseTimeLocal": "17:00",
+      "OpeningAuctionStart": "08:45",
+      "ClosingAuctionStart": "16:55",
+      "LunchBreakStart": null,
+      "LunchBreakEnd": null,
+      "Latitude": 55.6761,
+      "Longitude": 12.5683,
+      "IsDefault": false
     }
   ]
 }

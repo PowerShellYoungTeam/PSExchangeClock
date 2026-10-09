@@ -3,16 +3,21 @@
 function Get-StockExchangeData {
 <#
 .SYNOPSIS
-    Retrieves stock exchange trading hours for 20 major global exchanges.
+    Retrieves stock exchange trading hours for 21 major global exchanges.
 .DESCRIPTION
     Fetches trading hours data from Wikipedia, parses it, and saves to a local
-    JSON cache file. Includes hardcoded fallback data for 20 major exchanges
+    JSON cache file. Includes hardcoded fallback data for 21 major exchanges
     so the tool works offline. Used by PSExchangeClock to determine exchange
     open/close times, lunch breaks, and geographic coordinates.
 
     Supported exchanges: NYSE, NASDAQ, LSE, Euronext Paris, Tokyo, Shanghai,
     Hong Kong, Toronto, Frankfurt, Sydney, Bombay, NSE India, Korea,
-    Switzerland, Johannesburg, B3 Brazil, Mexico, Singapore, Taiwan, Moscow.
+    Switzerland, Johannesburg, B3 Brazil, Mexico, Singapore, Taiwan, Moscow,
+    Nasdaq Copenhagen.
+
+    A cache younger than 30 days is used as-is, except that any built-in
+    exchange missing from it (for example one added in a newer module version)
+    is appended from the hardcoded data. Cached entries are never overwritten.
 .PARAMETER ForceRefresh
     Bypass the cache and re-scrape from Wikipedia.
 .PARAMETER OutputPath
@@ -42,7 +47,7 @@ param(
 function Get-DefaultExchangeData {
     <#
     .SYNOPSIS
-        Returns hardcoded data for 20 major stock exchanges.
+        Returns hardcoded data for 21 major stock exchanges.
     #>
     @(
         [PSCustomObject]@{
@@ -344,6 +349,30 @@ function Get-DefaultExchangeData {
             Latitude        = 55.7558
             Longitude       = 37.6173
             IsDefault       = $false
+        },
+        # Nasdaq Copenhagen main market equities, 09:00-17:00 local.
+        # 08:45-09:00 opening auction (random uncross 09:00:00-09:00:05);
+        # 16:55-17:00 closing auction (no continuous matching; random uncross
+        # 16:59:30-17:00). Sources: Nasdaq European Markets Trading Hours
+        # https://www.nasdaq.com/european-market-activity/trading-hours and the
+        # Nasdaq INET Nordic Auctions factsheet (1015-26)
+        # https://www.nasdaq.com/INETNordicAuctionsFactsheet
+        [PSCustomObject]@{
+            Name                = 'Nasdaq Copenhagen'
+            Code                = 'XCSE'
+            Symbol              = 'OMXC'
+            Country             = 'Denmark'
+            City                = 'Copenhagen'
+            TimeZoneId          = 'Romance Standard Time'
+            OpenTimeLocal       = '09:00'
+            CloseTimeLocal      = '17:00'
+            OpeningAuctionStart = '08:45'
+            ClosingAuctionStart = '16:55'
+            LunchBreakStart     = $null
+            LunchBreakEnd       = $null
+            Latitude            = 55.6761
+            Longitude           = 12.5683
+            IsDefault           = $false
         }
     )
 }
@@ -460,6 +489,13 @@ if (-not $ForceRefresh -and (Test-Path $OutputPath)) {
             $age = (Get-Date) - [datetime]$cached.LastUpdated
             if ($age.TotalDays -lt 30) {
                 Write-Verbose "Cache is $([int]$age.TotalDays) days old. Using cached data."
+                # Append built-in exchanges the cache predates, without touching cached entries
+                $cachedCodes = @($cached.Exchanges | ForEach-Object { $_.Code })
+                $missing = @(Get-DefaultExchangeData | Where-Object { $_.Code -notin $cachedCodes })
+                if ($missing.Count -gt 0) {
+                    Write-Verbose "Adding $($missing.Count) exchange(s) missing from cache: $(($missing | ForEach-Object { $_.Code }) -join ', ')"
+                    return @($cached.Exchanges) + $missing
+                }
                 return $cached.Exchanges
             }
             Write-Verbose "Cache is $([int]$age.TotalDays) days old. Refreshing."

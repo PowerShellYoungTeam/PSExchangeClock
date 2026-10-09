@@ -143,6 +143,11 @@ function New-StockExchangeCountdownDashboard {
             if ($chkNotify15 -and $chkNotify15.IsChecked) { $prefs.NotifyThresholds += 15 }
             if ($chkNotify5 -and $chkNotify5.IsChecked) { $prefs.NotifyThresholds += 5 }
             if ($chkAlwaysOnTop) { $prefs.AlwaysOnTop = [bool]$chkAlwaysOnTop.IsChecked }
+            if ($cmbMapStyle -and $cmbMapStyle.SelectedItem) { $prefs.MapStyle = [string]$cmbMapStyle.SelectedItem.Tag }
+            if ($script:mapProjection) { $prefs.MapProjection = [string]$script:mapProjection }
+            if ($script:mapOverlayToggles) {
+                $prefs.MapOverlays = @($script:mapOverlayToggles.Keys | Where-Object { $script:mapOverlayToggles[$_].IsChecked })
+            }
         }
         catch { }
         # API keys are stored via the secrets backend, not in JSON
@@ -994,6 +999,38 @@ public static class CredManager {
         $cmbMapProjection.Items.Add($item) | Out-Null
     }
     $cmbMapProjection.SelectedIndex = 0
+
+    # Overlay toggles by preference name (MapOverlays in user-preferences.json)
+    $script:mapOverlayToggles = [ordered]@{
+        DayNight           = $chkTerminator
+        TimeZoneBands      = $chkTimeZoneBands
+        PoliticalBorders   = $chkPoliticalBounds
+        TimeZoneBoundaries = $chkTZBoundaries
+        Earthquakes        = $chkEarthquakes
+        Volcanoes          = $chkVolcanoes
+        NaturalEvents      = $chkNaturalEvents
+        ConflictZones      = $chkConflictZones
+        SubmarineCables    = $chkSubmarineCables
+        PowerPlants        = $chkPowerPlants
+    }
+
+    # Restore saved map settings (runs before the change handlers are attached, so no redraws)
+    $mapState = Get-MapPreferenceState -UserPreferences $script:userPrefs `
+        -ValidStyles @($mapStyleOptions | ForEach-Object { $_.Value }) `
+        -ValidProjections @($projOptions | ForEach-Object { $_.Value }) `
+        -OverlayNames @($script:mapOverlayToggles.Keys)
+    if ($mapState.Style) {
+        $cmbMapStyle.SelectedIndex = [array]::IndexOf(@($mapStyleOptions | ForEach-Object { $_.Value }), $mapState.Style)
+    }
+    if ($mapState.Projection) {
+        $cmbMapProjection.SelectedIndex = [array]::IndexOf(@($projOptions | ForEach-Object { $_.Value }), $mapState.Projection)
+        $script:mapProjection = $mapState.Projection
+    }
+    if ($null -ne $mapState.Overlays) {
+        foreach ($name in $script:mapOverlayToggles.Keys) {
+            $script:mapOverlayToggles[$name].IsChecked = $mapState.Overlays -contains $name
+        }
+    }
 
     # ── Market Data Cache ─────────────────────────────────────────
 
@@ -4737,7 +4774,7 @@ public static class CredManager {
     # ── Map Toolbar Event Handlers ────────────────────────────────
 
     # Map style ComboBox
-    $cmbMapStyle.Add_SelectionChanged({ Initialize-WorldMap })
+    $cmbMapStyle.Add_SelectionChanged({ Initialize-WorldMap; Save-UserPreferences })
 
     # Map projection ComboBox
     $cmbMapProjection.Add_SelectionChanged({
@@ -4746,30 +4783,31 @@ public static class CredManager {
                 $script:mapProjection = $sel.Tag
                 $script:expandedCluster = $null
                 Initialize-WorldMap
+                Save-UserPreferences
             }
         })
 
     # Overlay toggles
-    $chkTerminator.Add_Checked({ Initialize-WorldMap })
-    $chkTerminator.Add_Unchecked({ Initialize-WorldMap })
-    $chkTimeZoneBands.Add_Checked({ Initialize-WorldMap })
-    $chkTimeZoneBands.Add_Unchecked({ Initialize-WorldMap })
-    $chkPoliticalBounds.Add_Checked({ Initialize-WorldMap })
-    $chkPoliticalBounds.Add_Unchecked({ Initialize-WorldMap })
-    $chkEarthquakes.Add_Checked({ Initialize-WorldMap })
-    $chkEarthquakes.Add_Unchecked({ Initialize-WorldMap })
-    $chkVolcanoes.Add_Checked({ Initialize-WorldMap })
-    $chkVolcanoes.Add_Unchecked({ Initialize-WorldMap })
-    $chkNaturalEvents.Add_Checked({ Initialize-WorldMap })
-    $chkNaturalEvents.Add_Unchecked({ Initialize-WorldMap })
-    $chkSubmarineCables.Add_Checked({ Initialize-WorldMap })
-    $chkSubmarineCables.Add_Unchecked({ Initialize-WorldMap })
-    $chkPowerPlants.Add_Checked({ Initialize-WorldMap })
-    $chkPowerPlants.Add_Unchecked({ Initialize-WorldMap })
-    $chkTZBoundaries.Add_Checked({ Initialize-WorldMap })
-    $chkTZBoundaries.Add_Unchecked({ Initialize-WorldMap })
-    $chkConflictZones.Add_Checked({ Initialize-WorldMap })
-    $chkConflictZones.Add_Unchecked({ Initialize-WorldMap })
+    $chkTerminator.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTerminator.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTimeZoneBands.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTimeZoneBands.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPoliticalBounds.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPoliticalBounds.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkEarthquakes.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkEarthquakes.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkVolcanoes.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkVolcanoes.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkNaturalEvents.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkNaturalEvents.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkSubmarineCables.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkSubmarineCables.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPowerPlants.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPowerPlants.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTZBoundaries.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTZBoundaries.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkConflictZones.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkConflictZones.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
 
     # Overlays flyout popup toggle
     $btnOverlays.Add_Checked({

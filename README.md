@@ -92,6 +92,9 @@ User preferences are stored in `%APPDATA%\PSExchangeClock\user-preferences.json`
 | `ActiveExchanges` | Array of exchange codes to display | All 20 exchanges |
 | `NotifyThresholds` | Minutes before close to show notifications | `[30, 15, 5]` |
 | `AlwaysOnTop` | Keep dashboard window above other windows | `false` |
+| `MapStyle` | World map style: `NightSatellite`, `BlueMarble`, `VectorDark` or `Minimal` | `NightSatellite` |
+| `MapProjection` | `Flat` or `Globe` | `Flat` |
+| `MapOverlays` | Overlays switched on: `DayNight`, `TimeZoneBands`, `PoliticalBorders`, `TimeZoneBoundaries`, `Earthquakes`, `Volcanoes`, `NaturalEvents`, `ConflictZones`, `SubmarineCables`, `PowerPlants`. An empty list means all off; unknown names are ignored | `["DayNight"]` |
 | `CommodityBaseCurrency` | Currency for commodity price display | `EUR` |
 | `SecretsBackend` | Where API keys are stored | `CredentialManager` |
 

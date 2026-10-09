@@ -5,6 +5,20 @@ All notable changes to PSExchangeClock will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Pester tests under `Tests/` (run with `Invoke-Pester ./Tests`), starting with map preference restore
+
+### Fixed
+
+- Map style, projection and overlay choices were never restored at start-up and were dropped whenever preferences were saved. They are now saved when changed and restored on launch (`MapStyle`, `MapProjection`, `MapOverlays`)
+
+### Changed
+
+- `PSExchangeClock.psm1` also loads non-exported helpers from `Private/`
+
 ## [1.1.0] - 2026-09-28
 
 ### Fixed

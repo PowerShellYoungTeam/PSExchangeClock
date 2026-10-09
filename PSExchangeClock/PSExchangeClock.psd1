@@ -6,7 +6,7 @@
     Author            = 'PowerShellYoungTeam'
     CompanyName       = 'PowerShellYoungTeam'
     Copyright         = '(c) 2026 PowerShellYoungTeam. All rights reserved.'
-    Description       = 'A real-time WPF dashboard for monitoring global stock exchange closing times, market data, forex, crypto, commodities, indices, and financial news — covering 20 major exchanges worldwide.'
+    Description       = 'A real-time WPF dashboard for monitoring global stock exchange closing times, market data, forex, crypto, commodities, indices, and financial news — covering 21 major exchanges worldwide.'
     PowerShellVersion = '7.0'
     CLRVersion        = '4.0'
 

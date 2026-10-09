@@ -11,7 +11,7 @@ A real-time WPF dashboard for monitoring global stock exchange closing times, li
 
 ## Features
 
-- **Live countdown timers** with color-coded status (green → yellow → red) for 20 major stock exchanges worldwide
+- **Live countdown timers** with color-coded status (green → yellow → red) for 21 major stock exchanges worldwide
 - **Interactive world map** with clickable exchange markers — NASA Earth at Night satellite imagery or vector continent outlines, flat and globe projections, zoom & pan
 - **Map overlays** toggled from the toolbar:
   - *Geo* — day/night terminator, timezone bands, political borders, timezone boundaries
@@ -23,7 +23,7 @@ A real-time WPF dashboard for monitoring global stock exchange closing times, li
   - Breaking financial news from the configurable `market-news-feeds.json` catalog (BBC Business, CNBC Markets, and EIA), with source/category filters, manual refresh, and live/degraded/cached status
   - Live forex rates (Frankfurter API / ECB XML fallback)
   - Cryptocurrency prices (CoinGecko API — top 10 coins)
-  - Stock indices (S&P 500, NASDAQ Composite, DAX, FTSE 100, Nikkei 225 via ETF proxies)
+  - Stock indices (S&P 500, NASDAQ Composite, DAX, FTSE 100, Nikkei 225 via ETF proxies, plus the OMX Copenhagen 25 index — see [OMXC25](#omxc25-omx-copenhagen-25))
   - Commodity prices (Gold, Silver, Oil, Natural Gas, Wheat, Platinum)
   - Individual stock quotes with company profiles and statistics
 - **Desktop notifications** at configurable thresholds (30, 15, 5 min) before exchange close
@@ -89,11 +89,15 @@ User preferences are stored in `%APPDATA%\PSExchangeClock\user-preferences.json`
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `ActiveExchanges` | Array of exchange codes to display | All 20 exchanges |
+| `ActiveExchanges` | Array of exchange codes to display | Seeded from `user-preferences.example.json` (`XNYS`, `XNAS`, `XLON`) |
 | `NotifyThresholds` | Minutes before close to show notifications | `[30, 15, 5]` |
 | `AlwaysOnTop` | Keep dashboard window above other windows | `false` |
+| `MapStyle` | World map style: `NightSatellite`, `BlueMarble`, `VectorDark` or `Minimal` | `NightSatellite` |
+| `MapProjection` | `Flat` or `Globe` | `Flat` |
+| `MapOverlays` | Overlays switched on: `DayNight`, `TimeZoneBands`, `PoliticalBorders`, `TimeZoneBoundaries`, `Earthquakes`, `Volcanoes`, `NaturalEvents`, `ConflictZones`, `SubmarineCables`, `PowerPlants`. An empty list means all off; unknown names are ignored | `["DayNight"]` |
 | `CommodityBaseCurrency` | Currency for commodity price display | `EUR` |
 | `SecretsBackend` | Where API keys are stored | `CredentialManager` |
+| `EnabledIndices` | Optional true indices to fetch that are off by default: `FTSE` (FTSE 100, needs a Twelve Data Grow plan) and `OMXC25` (needs Pro) | not set (off) |
 
 ### Holiday Overrides
 
@@ -130,6 +134,32 @@ Edit the `holidays.json` file in the module's `Data` directory to add market hol
 | SGX | Singapore Exchange | Singapore | SGT |
 | TWSE | Taiwan Stock Exchange | Taipei | CST |
 | MOEX | Moscow Exchange | Moscow | MSK |
+| OMXC | Nasdaq Copenhagen (Nasdaq København) | Copenhagen | CET/CEST |
+
+### Nasdaq Copenhagen
+
+| Property | Value |
+|----------|-------|
+| Code (MIC) | `XCSE` |
+| Timezone | `Romance Standard Time` (Windows ID; IANA `Europe/Copenhagen`) — DST from the OS timezone database, no fixed offset |
+| Main-market equities | 09:00–17:00 Copenhagen time |
+| Opening auction | 08:45–09:00 — random uncross 09:00:00–09:00:05 |
+| Continuous trading | 09:00–16:55 |
+| Closing auction (closing call) | 16:55–17:00 — no continuous matching; random uncross 16:59:30–17:00 |
+| Currency | DKK |
+| Default active | No — enable it in the exchange grid; existing saved selections are left unchanged |
+
+Sources: [Nasdaq European Markets Trading Hours and Holiday Schedule](https://www.nasdaq.com/european-market-activity/trading-hours) and the [Nasdaq INET Nordic Auctions factsheet](https://www.nasdaq.com/INETNordicAuctionsFactsheet) (1015-26).
+
+During the auctions the status reads *Opening auction - opens in …* (08:45–09:00) and *Closing auction - ends in …* (16:55–17:00) rather than *Opens in …* / *Closes in …*, and the exchange flyout shows both auction windows. The status colours stay as they were (PreMarket blue; closing red), so notifications are unchanged. The random uncross means continuous trading can start up to five seconds after 09:00; the dashboard switches to *Open* at exactly 09:00. Extended and after-hours sessions for other instrument types (ETFs, warrants, certificates, fixed income) are not modelled.
+
+**Holidays.** `holidays.json` includes the official Nasdaq Copenhagen equity closures for 2025, 2026 and 2027 (checked 2026-10-09). Exchange closures are not the same as Danish public holidays: Christmas Eve (24 Dec) and New Year's Eve (31 Dec) are exchange closures, and Nasdaq lists no half trading days for Copenhagen in those years. Limitations:
+
+- Dates after 2027 are not yet published by Nasdaq. Until `holidays.json` is updated, weekdays in later years are treated as trading days.
+- If `holidays.json` is missing or unreadable, a warning is written and every exchange falls back to weekday/session-hours logic only. There is no online holiday refresh.
+- Unscheduled closures and any future early closes are not known in advance; add them to `holidays.json` by hand. Early closes cannot be expressed in `holidays.json` (it only marks whole-day closures).
+
+Existing installs: `Get-StockExchangeData` appends any built-in exchange missing from a cache younger than 30 days, so Nasdaq Copenhagen appears without `-ForceRefresh`. Cached entries are not overwritten.
 
 ## Data Sources
 
@@ -139,7 +169,7 @@ Edit the `holidays.json` file in the module's `Data` directory to add market hol
 | Financial news | BBC Business, CNBC Markets, and U.S. EIA RSS feeds configured in `market-news-feeds.json` | Varies by provider |
 | Forex rates | [Frankfurter API](https://www.frankfurter.app/) / ECB XML | Unlimited |
 | Cryptocurrency | [CoinGecko API](https://www.coingecko.com/) | Unlimited |
-| Indices & Commodities | [Twelve Data API](https://twelvedata.com/) | 800 req/day |
+| Indices & Commodities | [Twelve Data API](https://twelvedata.com/) (FTSE 100: symbol `FTSE`, Grow plan; OMXC25: symbol `OMXC25`, Pro plan) | 800 req/day |
 | Stock quotes | [Alpha Vantage API](https://www.alphavantage.co/) | 25 req/day |
 | World map image | [NASA GSFC Earth at Night](https://earthobservatory.nasa.gov/) | One-time download |
 | Earthquakes | [USGS Earthquake Hazards](https://earthquake.usgs.gov/) | Unlimited |
@@ -149,9 +179,66 @@ Edit the `holidays.json` file in the module's `Data` directory to add market hol
 | Power plants | [WRI Global Power Plant Database](https://datasets.wri.org/datasets/global-power-plant-database) | Bundled data |
 | Submarine cables | [TeleGeography](https://www.submarinecablemap.com/) | Bundled data |
 
+## FTSE 100
+
+The London Stock Exchange (`XLON`) is the exchange; the FTSE 100 is the index of its 100 largest listed companies, calculated by FTSE Russell.
+
+| Property | Value |
+|----------|-------|
+| Provider | Twelve Data `/quote` |
+| Symbol | `FTSE` with `mic_code=XLON` — listed in Twelve Data's `/indices` catalogue as "FTSE 100", GBP. The MIC is required because the bare ticker `FTSE` is also an Amundi MSCI UK ETF on Euronext Paris |
+| Plan required | **Grow** or higher (Twelve Data catalogue `access.plan = "Grow"`). The free Basic key returns HTTP 403 |
+| Default | **Turned off**, shown greyed out with a note. Enable with `"EnabledIndices": ["FTSE"]` (combine with `"OMXC25"` if wanted) |
+| Home exchange | London Stock Exchange (`XLON`), United Kingdom |
+
+It uses the same status line, caching and back-off as OMXC25 below, judged against London hours. `holidays.json` has no UK closure dates, so on a UK bank holiday an old quote shows as *Stale* rather than *Last close*.
+
+## OMXC25 (OMX Copenhagen 25)
+
+[OMX Copenhagen 25](https://indexes.nasdaqomx.com/Index/Overview/OMXC25) is Nasdaq's market-value-weighted, free-float-adjusted and capped index of the 25 largest and most-traded shares on Nasdaq Copenhagen, quoted in DKK ([methodology](https://indexes.nasdaqomx.com/docs/Methodology_OMXC25.pdf)).
+
+| Property | Value |
+|----------|-------|
+| Provider | Twelve Data `/quote` (the existing Indices provider) |
+| Symbol | `OMXC25` — listed in Twelve Data's `/indices` catalogue as "OMX Copenhagen 25 Index", DKK |
+| Plan required | **Pro** or higher (Twelve Data catalogue `access.plan = "Pro"`). The free Basic key returns HTTP 403 |
+| Default | **Turned off.** The Indices tab shows the row greyed out with a note saying why, and no request is made |
+| Home exchange | Nasdaq Copenhagen (`XCSE`), Denmark |
+| Refresh | Every 15 minutes, like the other indices |
+
+### Enabling OMXC25
+
+If your Twelve Data key is on a Pro plan or higher, add `EnabledIndices` to `%APPDATA%\PSExchangeClock\user-preferences.json` and restart the dashboard:
+
+```json
+"EnabledIndices": ["OMXC25"]
+```
+
+There is no Settings control for this yet. The dashboard keeps the value when it saves your preferences. Remove the entry to turn it off again.
+
+Unlike the other Indices rows (US-listed ETF proxies), OMXC25 is a true index value and is fetched in its own request, so a plan restriction never affects the ETF rows. Each OMXC25 row shows a status line:
+
+| Status | Meaning |
+|--------|---------|
+| Intraday (may be delayed) | Nasdaq Copenhagen is in session and the quote is no older than 30 minutes. Twelve Data does not say whether a quote is real-time or delayed, so values are never labelled "live" |
+| Last close | Copenhagen is closed (pre-open, after 17:00, weekend or `holidays.json` closure) and the quote is from the last 7 days |
+| Stale | In session but the quote is more than 30 minutes old, or closed with a quote older than 7 days. The value is greyed out |
+| Unavailable | No quote has been received this session |
+
+The quote time is shown in Copenhagen time. Session status comes from the dashboard's own Nasdaq Copenhagen hours and holidays, not from the provider's `is_market_open` flag, because Twelve Data files OMXC25 under the Stockholm MIC (`XSTO`), whose hours and holidays differ.
+
+### Troubleshooting missing or stale OMXC25 quotes
+
+- **"Turned off: needs a Twelve Data Pro plan…"** — the default. See [Enabling OMXC25](#enabling-omxc25).
+- **"Requires a Twelve Data Pro plan or higher (HTTP 403)"** — your key's plan does not include this index. After a 403 the dashboard stops requesting OMXC25 for that key for the rest of the session, so it does not spend credits. Upgrade the plan, or ignore the row. Entering a different key in Settings retries it.
+- **"Last refresh failed (429) — retrying in 15 min"** — rate limit (8 credits/min on the free tier). The last good value, if any, is still shown with its own status.
+- **"Last refresh failed — retrying in 15 min"** with no code — network or timeout. Check connectivity to `api.twelvedata.com`.
+- **Stale while the market is open** — the provider has not updated the index for over 30 minutes. Compare with [Nasdaq's OMXC25 page](https://indexes.nasdaqomx.com/Index/Overview/OMXC25).
+- **No Indices tab at all** — no Twelve Data key is set; add one in **Settings**.
+
 ## Refreshing Exchange Data
 
-The module includes hardcoded fallback data for all 20 exchanges. To pull the latest trading hours from Wikipedia:
+The module includes hardcoded fallback data for all 21 exchanges. To pull the latest trading hours from Wikipedia:
 
 ```powershell
 Get-StockExchangeData -ForceRefresh

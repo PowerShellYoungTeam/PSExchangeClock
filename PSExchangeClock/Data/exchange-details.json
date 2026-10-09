@@ -218,5 +218,16 @@
         "Website": "https://www.moex.com/en",
         "Regulator": "Bank of Russia",
         "Description": "Moscow Exchange is Russia's largest exchange group, operating trading markets in equities, bonds, derivatives, currencies, and commodities."
+    },
+    "XCSE": {
+        "PrimaryIndex": "OMX Copenhagen 25 (OMXC25)",
+        "MarketCapUSD": "n/a",
+        "ListedCompanies": "n/a",
+        "Currency": "DKK",
+        "CurrencySymbol": "kr.",
+        "Founded": 1808,
+        "Website": "https://www.nasdaq.com/european-markets/about-nordic-exchanges",
+        "Regulator": "Finanstilsynet",
+        "Description": "Nasdaq Copenhagen (Nasdaq København) is Denmark's stock exchange and part of Nasdaq Nordic. Main-market equities trade 09:00-17:00 Copenhagen time, with a closing auction from 16:55. Its benchmark is the OMX Copenhagen 25 index."
     }
 }

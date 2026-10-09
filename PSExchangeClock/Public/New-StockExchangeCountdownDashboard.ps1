@@ -4957,12 +4957,10 @@ public static class CredManager {
     $btnRefresh.Add_Click({
             $txtStatus.Text = 'Refreshing exchange data...'
             try {
-                if (Test-Path $scraperPath) {
-                    $refreshed = & $scraperPath -ForceRefresh
-                    if ($refreshed) {
-                        $txtStatus.Text = "Refreshed $($refreshed.Count) exchanges"
-                        $txtLastUpdated.Text = "Last updated: $([DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss'))"
-                    }
+                $refreshed = @(Get-StockExchangeData -ForceRefresh)
+                if ($refreshed.Count -gt 0) {
+                    $txtStatus.Text = "Refreshed $($refreshed.Count) exchanges"
+                    $txtLastUpdated.Text = "Last updated: $([DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss'))"
                 }
             }
             catch {

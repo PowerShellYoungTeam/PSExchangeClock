@@ -36,7 +36,8 @@ LONG DESCRIPTION
         - Breaking financial news (Reuters, BBC, CNBC RSS feeds)
         - Live forex rates (Frankfurter API / ECB XML fallback)
         - Cryptocurrency prices (CoinGecko API, top 10 coins)
-        - Stock indices (S&P 500, NASDAQ, DAX, FTSE, Nikkei via ETF proxies)
+        - Stock indices (S&P 500, Nasdaq-100, Dow Jones, MSCI UK, MSCI
+          Germany, MSCI Japan, China large-cap and MSCI India via ETF proxies)
         - Commodity prices (Gold, Silver, Oil, Natural Gas, Wheat)
         - Individual stock quotes with company profiles and statistics
 

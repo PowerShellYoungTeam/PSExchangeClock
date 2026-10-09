@@ -1258,9 +1258,10 @@ public static class CredManager {
             @{ Symbol = 'SPY'; Name = 'S&P 500 (SPY)' },
             @{ Symbol = 'QQQ'; Name = 'NASDAQ 100 (QQQ)' },
             @{ Symbol = 'DIA'; Name = 'Dow Jones (DIA)' },
-            @{ Symbol = 'EWU'; Name = 'FTSE 100 (EWU)' },
-            @{ Symbol = 'EWG'; Name = 'DAX (EWG)' },
-            @{ Symbol = 'EWJ'; Name = 'Nikkei 225 (EWJ)' },
+            # EWU/EWG/EWJ track MSCI country indices, not the FTSE 100, DAX or Nikkei 225
+            @{ Symbol = 'EWU'; Name = 'MSCI UK (EWU)' },
+            @{ Symbol = 'EWG'; Name = 'MSCI Germany (EWG)' },
+            @{ Symbol = 'EWJ'; Name = 'MSCI Japan (EWJ)' },
             @{ Symbol = 'FXI'; Name = 'China Large-Cap (FXI)' },
             @{ Symbol = 'INDA'; Name = 'India (INDA)' }
         )

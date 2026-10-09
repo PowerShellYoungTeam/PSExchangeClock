@@ -23,7 +23,7 @@ A real-time WPF dashboard for monitoring global stock exchange closing times, li
   - Breaking financial news from the configurable `market-news-feeds.json` catalog (BBC Business, CNBC Markets, and EIA), with source/category filters, manual refresh, and live/degraded/cached status
   - Live forex rates (Frankfurter API / ECB XML fallback)
   - Cryptocurrency prices (CoinGecko API — top 10 coins)
-  - Stock indices (S&P 500, NASDAQ Composite, DAX, FTSE 100, Nikkei 225 via ETF proxies)
+  - Stock indices via US-listed ETF proxies (S&P 500, Nasdaq-100, Dow Jones, MSCI UK, MSCI Germany, MSCI Japan, China large-cap, MSCI India)
   - Commodity prices (Gold, Silver, Oil, Natural Gas, Wheat, Platinum)
   - Individual stock quotes with company profiles and statistics
 - **Desktop notifications** at configurable thresholds (30, 15, 5 min) before exchange close

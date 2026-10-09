@@ -382,7 +382,7 @@ public static class CredManager {
         # Pre-market
         if ($localNow -lt $openTime) {
             $remaining = $openTime - $localNow
-            return @{ Status = 'PreMarket'; Text = "Opens in $("{0:D2}:{1:D2}:{2:D2}" -f [int]$remaining.TotalHours, $remaining.Minutes, $remaining.Seconds)"; TimeRemaining = $remaining; CountdownTarget = 'Open' }
+            return @{ Status = 'PreMarket'; Text = "Opens in $("{0:D2}:{1:D2}:{2:D2}" -f [int][math]::Floor($remaining.TotalHours), $remaining.Minutes, $remaining.Seconds)"; TimeRemaining = $remaining; CountdownTarget = 'Open' }
         }
 
         # Post-close
@@ -393,12 +393,12 @@ public static class CredManager {
         # Lunch break
         if ($lunchStart -and $lunchEnd -and $localNow -ge $lunchStart -and $localNow -lt $lunchEnd) {
             $remaining = $lunchEnd - $localNow
-            return @{ Status = 'LunchBreak'; Text = "Lunch - Reopens in $("{0:D2}:{1:D2}:{2:D2}" -f [int]$remaining.TotalHours, $remaining.Minutes, $remaining.Seconds)"; TimeRemaining = $remaining; CountdownTarget = 'Reopen' }
+            return @{ Status = 'LunchBreak'; Text = "Lunch - Reopens in $("{0:D2}:{1:D2}:{2:D2}" -f [int][math]::Floor($remaining.TotalHours), $remaining.Minutes, $remaining.Seconds)"; TimeRemaining = $remaining; CountdownTarget = 'Reopen' }
         }
 
         # Open — countdown to close (skip lunch if applicable)
         $remaining = $closeTime - $localNow
-        $countdownStr = "{0:D2}:{1:D2}:{2:D2}" -f [int]$remaining.TotalHours, $remaining.Minutes, $remaining.Seconds
+        $countdownStr = "{0:D2}:{1:D2}:{2:D2}" -f [int][math]::Floor($remaining.TotalHours), $remaining.Minutes, $remaining.Seconds
 
         if ($remaining.TotalMinutes -le 5) {
             return @{ Status = 'ClosingImminent'; Text = "Closes in $countdownStr"; TimeRemaining = $remaining; CountdownTarget = 'Close' }
@@ -4545,7 +4545,7 @@ public static class CredManager {
             $row.StatusColor = $color
 
             if ($statusInfo.TimeRemaining) {
-                $row.CountdownText = "{0:D2}:{1:D2}:{2:D2}" -f [int]$statusInfo.TimeRemaining.TotalHours, $statusInfo.TimeRemaining.Minutes, $statusInfo.TimeRemaining.Seconds
+                $row.CountdownText = "{0:D2}:{1:D2}:{2:D2}" -f [int][math]::Floor($statusInfo.TimeRemaining.TotalHours), $statusInfo.TimeRemaining.Minutes, $statusInfo.TimeRemaining.Seconds
             }
             else {
                 $row.CountdownText = '--:--:--'
@@ -4611,7 +4611,7 @@ public static class CredManager {
 
         # Update status bar
         if ($nextCloseExchange -and $nextCloseRemaining) {
-            $ncs = "{0:D2}:{1:D2}:{2:D2}" -f [int]$nextCloseRemaining.TotalHours, $nextCloseRemaining.Minutes, $nextCloseRemaining.Seconds
+            $ncs = "{0:D2}:{1:D2}:{2:D2}" -f [int][math]::Floor($nextCloseRemaining.TotalHours), $nextCloseRemaining.Minutes, $nextCloseRemaining.Seconds
             $txtNextClose.Text = "Next close: $nextCloseExchange in $ncs"
             $window.Title = "PSExchangeClock — Next: $nextCloseExchange $ncs"
         }

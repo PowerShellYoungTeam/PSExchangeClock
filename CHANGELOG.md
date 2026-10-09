@@ -5,6 +5,27 @@ All notable changes to PSExchangeClock will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Nasdaq Copenhagen (`XCSE`)** — main-market equities 09:00–17:00 Copenhagen time (`Romance Standard Time`), with the 08:45–09:00 opening auction and 16:55–17:00 closing auction shown as auctions rather than pre-market or continuous trading; map marker, flyout details and world clock via the existing mechanisms; not active by default
+- Official Nasdaq Copenhagen closures for 2025–2027 in `holidays.json`
+- Optional `OpeningAuctionStart` and `ClosingAuctionStart` fields on exchange records
+- Pester tests under `Tests/` (run with `Invoke-Pester ./Tests`), starting with map preference restore
+- Tests for Nasdaq Copenhagen session status, auctions, holidays, DST transitions, selection and exchange-data caching
+
+### Fixed
+
+- Map style, projection and overlay choices were never restored at start-up and were dropped whenever preferences were saved. They are now saved when changed and restored on launch (`MapStyle`, `MapProjection`, `MapOverlays`)
+- Countdowns are now measured in UTC, so they stay correct on DST transition days
+- `Get-StockExchangeData` now appends built-in exchanges missing from a cache younger than 30 days, so new exchanges appear for existing installs
+
+### Changed
+
+- `PSExchangeClock.psm1` also loads non-exported helpers from `Private/`
+- Exchange status and selection logic moved to `Private/` helpers so it can be tested without WPF
+
 ## [1.1.0] - 2026-09-28
 
 ### Fixed

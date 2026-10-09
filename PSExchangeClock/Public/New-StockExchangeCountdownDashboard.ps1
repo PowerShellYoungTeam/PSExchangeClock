@@ -9,7 +9,7 @@ function New-StockExchangeCountdownDashboard {
     live market data. Built in PowerShell with a professional dark-themed interface.
 
     Features include:
-    - Live countdown timers with color-coded status for 20 major exchanges worldwide
+    - Live countdown timers with color-coded status for 21 major exchanges worldwide
     - Interactive world map with clickable exchange markers (NASA Earth at Night imagery)
     - World clocks across multiple time zones
     - Market data sidebar: financial news (RSS), forex rates, cryptocurrency prices,
@@ -143,6 +143,11 @@ function New-StockExchangeCountdownDashboard {
             if ($chkNotify15 -and $chkNotify15.IsChecked) { $prefs.NotifyThresholds += 15 }
             if ($chkNotify5 -and $chkNotify5.IsChecked) { $prefs.NotifyThresholds += 5 }
             if ($chkAlwaysOnTop) { $prefs.AlwaysOnTop = [bool]$chkAlwaysOnTop.IsChecked }
+            if ($cmbMapStyle -and $cmbMapStyle.SelectedItem) { $prefs.MapStyle = [string]$cmbMapStyle.SelectedItem.Tag }
+            if ($script:mapProjection) { $prefs.MapProjection = [string]$script:mapProjection }
+            if ($script:mapOverlayToggles) {
+                $prefs.MapOverlays = @($script:mapOverlayToggles.Keys | Where-Object { $script:mapOverlayToggles[$_].IsChecked })
+            }
         }
         catch { }
         # API keys are stored via the secrets backend, not in JSON
@@ -348,67 +353,8 @@ public static class CredManager {
 
     function Get-ExchangeStatus {
         param([PSCustomObject]$Exchange)
-
-        $localNow = Get-ExchangeLocalTime -Exchange $Exchange
-        $dayOfWeek = $localNow.DayOfWeek
-
-        # Weekend check
-        if ($dayOfWeek -eq 'Saturday' -or $dayOfWeek -eq 'Sunday') {
-            return @{ Status = 'Closed'; Text = 'Weekend'; TimeRemaining = $null; CountdownTarget = $null }
-        }
-
-        # Holiday check
-        $todayStr = $localNow.ToString('yyyy-MM-dd')
-        if ($holidays.ContainsKey($Exchange.Code) -and $holidays[$Exchange.Code] -contains $todayStr) {
-            return @{ Status = 'Holiday'; Text = 'Holiday - Closed'; TimeRemaining = $null; CountdownTarget = $null }
-        }
-
-        # Parse times
-        $openParts = $Exchange.OpenTimeLocal -split ':'
-        $closeParts = $Exchange.CloseTimeLocal -split ':'
-        $openTime = $localNow.Date.AddHours([int]$openParts[0]).AddMinutes([int]$openParts[1])
-        $closeTime = $localNow.Date.AddHours([int]$closeParts[0]).AddMinutes([int]$closeParts[1])
-
-        # Lunch break
-        $lunchStart = $null
-        $lunchEnd = $null
-        if ($Exchange.LunchBreakStart -and $Exchange.LunchBreakEnd) {
-            $lsParts = $Exchange.LunchBreakStart -split ':'
-            $leParts = $Exchange.LunchBreakEnd -split ':'
-            $lunchStart = $localNow.Date.AddHours([int]$lsParts[0]).AddMinutes([int]$lsParts[1])
-            $lunchEnd = $localNow.Date.AddHours([int]$leParts[0]).AddMinutes([int]$leParts[1])
-        }
-
-        # Pre-market
-        if ($localNow -lt $openTime) {
-            $remaining = $openTime - $localNow
-            return @{ Status = 'PreMarket'; Text = "Opens in $("{0:D2}:{1:D2}:{2:D2}" -f [int]$remaining.TotalHours, $remaining.Minutes, $remaining.Seconds)"; TimeRemaining = $remaining; CountdownTarget = 'Open' }
-        }
-
-        # Post-close
-        if ($localNow -ge $closeTime) {
-            return @{ Status = 'Closed'; Text = 'Closed'; TimeRemaining = $null; CountdownTarget = $null }
-        }
-
-        # Lunch break
-        if ($lunchStart -and $lunchEnd -and $localNow -ge $lunchStart -and $localNow -lt $lunchEnd) {
-            $remaining = $lunchEnd - $localNow
-            return @{ Status = 'LunchBreak'; Text = "Lunch - Reopens in $("{0:D2}:{1:D2}:{2:D2}" -f [int]$remaining.TotalHours, $remaining.Minutes, $remaining.Seconds)"; TimeRemaining = $remaining; CountdownTarget = 'Reopen' }
-        }
-
-        # Open — countdown to close (skip lunch if applicable)
-        $remaining = $closeTime - $localNow
-        $countdownStr = "{0:D2}:{1:D2}:{2:D2}" -f [int]$remaining.TotalHours, $remaining.Minutes, $remaining.Seconds
-
-        if ($remaining.TotalMinutes -le 5) {
-            return @{ Status = 'ClosingImminent'; Text = "Closes in $countdownStr"; TimeRemaining = $remaining; CountdownTarget = 'Close' }
-        }
-        elseif ($remaining.TotalMinutes -le 30) {
-            return @{ Status = 'ClosingSoon'; Text = "Closes in $countdownStr"; TimeRemaining = $remaining; CountdownTarget = 'Close' }
-        }
-        else {
-            return @{ Status = 'Open'; Text = "Closes in $countdownStr"; TimeRemaining = $remaining; CountdownTarget = 'Close' }
-        }
+        # Status logic lives in Private/Get-ExchangeSessionStatus.ps1 so it can be tested without WPF
+        Get-ExchangeSessionStatus -Exchange $Exchange -UtcNow ([DateTime]::UtcNow) -Holidays $holidays
     }
 
     function Get-StatusColor {
@@ -994,6 +940,38 @@ public static class CredManager {
         $cmbMapProjection.Items.Add($item) | Out-Null
     }
     $cmbMapProjection.SelectedIndex = 0
+
+    # Overlay toggles by preference name (MapOverlays in user-preferences.json)
+    $script:mapOverlayToggles = [ordered]@{
+        DayNight           = $chkTerminator
+        TimeZoneBands      = $chkTimeZoneBands
+        PoliticalBorders   = $chkPoliticalBounds
+        TimeZoneBoundaries = $chkTZBoundaries
+        Earthquakes        = $chkEarthquakes
+        Volcanoes          = $chkVolcanoes
+        NaturalEvents      = $chkNaturalEvents
+        ConflictZones      = $chkConflictZones
+        SubmarineCables    = $chkSubmarineCables
+        PowerPlants        = $chkPowerPlants
+    }
+
+    # Restore saved map settings (runs before the change handlers are attached, so no redraws)
+    $mapState = Get-MapPreferenceState -UserPreferences $script:userPrefs `
+        -ValidStyles @($mapStyleOptions | ForEach-Object { $_.Value }) `
+        -ValidProjections @($projOptions | ForEach-Object { $_.Value }) `
+        -OverlayNames @($script:mapOverlayToggles.Keys)
+    if ($mapState.Style) {
+        $cmbMapStyle.SelectedIndex = [array]::IndexOf(@($mapStyleOptions | ForEach-Object { $_.Value }), $mapState.Style)
+    }
+    if ($mapState.Projection) {
+        $cmbMapProjection.SelectedIndex = [array]::IndexOf(@($projOptions | ForEach-Object { $_.Value }), $mapState.Projection)
+        $script:mapProjection = $mapState.Projection
+    }
+    if ($null -ne $mapState.Overlays) {
+        foreach ($name in $script:mapOverlayToggles.Keys) {
+            $script:mapOverlayToggles[$name].IsChecked = $mapState.Overlays -contains $name
+        }
+    }
 
     # ── Market Data Cache ─────────────────────────────────────────
 
@@ -2441,11 +2419,8 @@ public static class CredManager {
     $script:notificationsFired = @{}
 
     foreach ($ex in $allExchanges) {
-        $isActive = $ex.IsDefault
-        # Apply saved preferences if available
-        if ($script:userPrefs -and $script:userPrefs.ActiveExchanges) {
-            $isActive = $script:userPrefs.ActiveExchanges -contains $ex.Code
-        }
+        # Saved preferences win; exchanges absent from them stay inactive
+        $isActive = Test-ExchangeActive -Exchange $ex -UserPreferences $script:userPrefs
         $row = [PSCustomObject]@{
             DisplayName      = $ex.Name
             Code             = $ex.Code
@@ -2457,6 +2432,8 @@ public static class CredManager {
             CloseTime        = $ex.CloseTimeLocal
             LunchBreakStart  = $ex.LunchBreakStart
             LunchBreakEnd    = $ex.LunchBreakEnd
+            OpeningAuctionStart = $ex.OpeningAuctionStart
+            ClosingAuctionStart = $ex.ClosingAuctionStart
             Latitude         = $ex.Latitude
             Longitude        = $ex.Longitude
             IsActive         = $isActive
@@ -2608,6 +2585,8 @@ public static class CredManager {
             $exObj = [PSCustomObject]@{
                 TimeZoneId = $row.TimeZoneId; OpenTimeLocal = $row.OpenTime; CloseTimeLocal = $row.CloseTime
                 LunchBreakStart = $row.LunchBreakStart; LunchBreakEnd = $row.LunchBreakEnd; Code = $row.Code
+                OpeningAuctionStart = $row.OpeningAuctionStart
+                ClosingAuctionStart = $row.ClosingAuctionStart
             }
             $si = Get-ExchangeStatus -Exchange $exObj
             $rank = $priority.IndexOf($si.Status)
@@ -4229,6 +4208,8 @@ public static class CredManager {
             CloseTimeLocal  = $row.CloseTime
             LunchBreakStart = $row.LunchBreakStart
             LunchBreakEnd   = $row.LunchBreakEnd
+            OpeningAuctionStart = $row.OpeningAuctionStart
+            ClosingAuctionStart = $row.ClosingAuctionStart
             Code            = $row.Code
         }
         $statusInfo = Get-ExchangeStatus -Exchange $exObj
@@ -4283,6 +4264,12 @@ public static class CredManager {
         Add-FlyoutRow -Label 'Countdown' -Value $row.CountdownText -ValueColor $statusColor
         Add-FlyoutRow -Label 'Local Time' -Value $row.CurrentLocalTime
         Add-FlyoutRow -Label 'Hours' -Value "$($row.OpenTime) – $($row.CloseTime)"
+        if ($row.OpeningAuctionStart) {
+            Add-FlyoutRow -Label 'Opening Auction' -Value "$($row.OpeningAuctionStart) – $($row.OpenTime)"
+        }
+        if ($row.ClosingAuctionStart) {
+            Add-FlyoutRow -Label 'Closing Auction' -Value "$($row.ClosingAuctionStart) – $($row.CloseTime) (no continuous trading)"
+        }
         Add-FlyoutRow -Label 'Location' -Value "$($row.City), $($row.Country)"
 
         # Divider
@@ -4534,6 +4521,8 @@ public static class CredManager {
                 CloseTimeLocal  = $row.CloseTime
                 LunchBreakStart = $row.LunchBreakStart
                 LunchBreakEnd   = $row.LunchBreakEnd
+                OpeningAuctionStart = $row.OpeningAuctionStart
+                ClosingAuctionStart = $row.ClosingAuctionStart
                 Code            = $row.Code
             }
 
@@ -4545,7 +4534,7 @@ public static class CredManager {
             $row.StatusColor = $color
 
             if ($statusInfo.TimeRemaining) {
-                $row.CountdownText = "{0:D2}:{1:D2}:{2:D2}" -f [int]$statusInfo.TimeRemaining.TotalHours, $statusInfo.TimeRemaining.Minutes, $statusInfo.TimeRemaining.Seconds
+                $row.CountdownText = Format-CountdownSpan -TimeSpan $statusInfo.TimeRemaining
             }
             else {
                 $row.CountdownText = '--:--:--'
@@ -4611,7 +4600,7 @@ public static class CredManager {
 
         # Update status bar
         if ($nextCloseExchange -and $nextCloseRemaining) {
-            $ncs = "{0:D2}:{1:D2}:{2:D2}" -f [int]$nextCloseRemaining.TotalHours, $nextCloseRemaining.Minutes, $nextCloseRemaining.Seconds
+            $ncs = Format-CountdownSpan -TimeSpan $nextCloseRemaining
             $txtNextClose.Text = "Next close: $nextCloseExchange in $ncs"
             $window.Title = "PSExchangeClock — Next: $nextCloseExchange $ncs"
         }
@@ -4737,7 +4726,7 @@ public static class CredManager {
     # ── Map Toolbar Event Handlers ────────────────────────────────
 
     # Map style ComboBox
-    $cmbMapStyle.Add_SelectionChanged({ Initialize-WorldMap })
+    $cmbMapStyle.Add_SelectionChanged({ Initialize-WorldMap; Save-UserPreferences })
 
     # Map projection ComboBox
     $cmbMapProjection.Add_SelectionChanged({
@@ -4746,30 +4735,31 @@ public static class CredManager {
                 $script:mapProjection = $sel.Tag
                 $script:expandedCluster = $null
                 Initialize-WorldMap
+                Save-UserPreferences
             }
         })
 
     # Overlay toggles
-    $chkTerminator.Add_Checked({ Initialize-WorldMap })
-    $chkTerminator.Add_Unchecked({ Initialize-WorldMap })
-    $chkTimeZoneBands.Add_Checked({ Initialize-WorldMap })
-    $chkTimeZoneBands.Add_Unchecked({ Initialize-WorldMap })
-    $chkPoliticalBounds.Add_Checked({ Initialize-WorldMap })
-    $chkPoliticalBounds.Add_Unchecked({ Initialize-WorldMap })
-    $chkEarthquakes.Add_Checked({ Initialize-WorldMap })
-    $chkEarthquakes.Add_Unchecked({ Initialize-WorldMap })
-    $chkVolcanoes.Add_Checked({ Initialize-WorldMap })
-    $chkVolcanoes.Add_Unchecked({ Initialize-WorldMap })
-    $chkNaturalEvents.Add_Checked({ Initialize-WorldMap })
-    $chkNaturalEvents.Add_Unchecked({ Initialize-WorldMap })
-    $chkSubmarineCables.Add_Checked({ Initialize-WorldMap })
-    $chkSubmarineCables.Add_Unchecked({ Initialize-WorldMap })
-    $chkPowerPlants.Add_Checked({ Initialize-WorldMap })
-    $chkPowerPlants.Add_Unchecked({ Initialize-WorldMap })
-    $chkTZBoundaries.Add_Checked({ Initialize-WorldMap })
-    $chkTZBoundaries.Add_Unchecked({ Initialize-WorldMap })
-    $chkConflictZones.Add_Checked({ Initialize-WorldMap })
-    $chkConflictZones.Add_Unchecked({ Initialize-WorldMap })
+    $chkTerminator.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTerminator.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTimeZoneBands.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTimeZoneBands.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPoliticalBounds.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPoliticalBounds.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkEarthquakes.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkEarthquakes.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkVolcanoes.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkVolcanoes.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkNaturalEvents.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkNaturalEvents.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkSubmarineCables.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkSubmarineCables.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPowerPlants.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkPowerPlants.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTZBoundaries.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkTZBoundaries.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkConflictZones.Add_Checked({ Initialize-WorldMap; Save-UserPreferences })
+    $chkConflictZones.Add_Unchecked({ Initialize-WorldMap; Save-UserPreferences })
 
     # Overlays flyout popup toggle
     $btnOverlays.Add_Checked({

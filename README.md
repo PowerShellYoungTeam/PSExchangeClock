@@ -11,7 +11,7 @@ A real-time WPF dashboard for monitoring global stock exchange closing times, li
 
 ## Features
 
-- **Live countdown timers** with color-coded status (green → yellow → red) for 20 major stock exchanges worldwide
+- **Live countdown timers** with color-coded status (green → yellow → red) for 21 major stock exchanges worldwide
 - **Interactive world map** with clickable exchange markers — NASA Earth at Night satellite imagery or vector continent outlines, flat and globe projections, zoom & pan
 - **Map overlays** toggled from the toolbar:
   - *Geo* — day/night terminator, timezone bands, political borders, timezone boundaries
@@ -89,9 +89,12 @@ User preferences are stored in `%APPDATA%\PSExchangeClock\user-preferences.json`
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `ActiveExchanges` | Array of exchange codes to display | All 20 exchanges |
+| `ActiveExchanges` | Array of exchange codes to display | Seeded from `user-preferences.example.json` (`XNYS`, `XNAS`, `XLON`) |
 | `NotifyThresholds` | Minutes before close to show notifications | `[30, 15, 5]` |
 | `AlwaysOnTop` | Keep dashboard window above other windows | `false` |
+| `MapStyle` | World map style: `NightSatellite`, `BlueMarble`, `VectorDark` or `Minimal` | `NightSatellite` |
+| `MapProjection` | `Flat` or `Globe` | `Flat` |
+| `MapOverlays` | Overlays switched on: `DayNight`, `TimeZoneBands`, `PoliticalBorders`, `TimeZoneBoundaries`, `Earthquakes`, `Volcanoes`, `NaturalEvents`, `ConflictZones`, `SubmarineCables`, `PowerPlants`. An empty list means all off; unknown names are ignored | `["DayNight"]` |
 | `CommodityBaseCurrency` | Currency for commodity price display | `EUR` |
 | `SecretsBackend` | Where API keys are stored | `CredentialManager` |
 
@@ -130,6 +133,32 @@ Edit the `holidays.json` file in the module's `Data` directory to add market hol
 | SGX | Singapore Exchange | Singapore | SGT |
 | TWSE | Taiwan Stock Exchange | Taipei | CST |
 | MOEX | Moscow Exchange | Moscow | MSK |
+| OMXC | Nasdaq Copenhagen (Nasdaq København) | Copenhagen | CET/CEST |
+
+### Nasdaq Copenhagen
+
+| Property | Value |
+|----------|-------|
+| Code (MIC) | `XCSE` |
+| Timezone | `Romance Standard Time` (Windows ID; IANA `Europe/Copenhagen`) — DST from the OS timezone database, no fixed offset |
+| Main-market equities | 09:00–17:00 Copenhagen time |
+| Opening auction | 08:45–09:00 — random uncross 09:00:00–09:00:05 |
+| Continuous trading | 09:00–16:55 |
+| Closing auction (closing call) | 16:55–17:00 — no continuous matching; random uncross 16:59:30–17:00 |
+| Currency | DKK |
+| Default active | No — enable it in the exchange grid; existing saved selections are left unchanged |
+
+Sources: [Nasdaq European Markets Trading Hours and Holiday Schedule](https://www.nasdaq.com/european-market-activity/trading-hours) and the [Nasdaq INET Nordic Auctions factsheet](https://www.nasdaq.com/INETNordicAuctionsFactsheet) (1015-26).
+
+During the auctions the status reads *Opening auction - opens in …* (08:45–09:00) and *Closing auction - ends in …* (16:55–17:00) rather than *Opens in …* / *Closes in …*, and the exchange flyout shows both auction windows. The status colours stay as they were (PreMarket blue; closing red), so notifications are unchanged. The random uncross means continuous trading can start up to five seconds after 09:00; the dashboard switches to *Open* at exactly 09:00. Extended and after-hours sessions for other instrument types (ETFs, warrants, certificates, fixed income) are not modelled.
+
+**Holidays.** `holidays.json` includes the official Nasdaq Copenhagen equity closures for 2025, 2026 and 2027 (checked 2026-10-09). Exchange closures are not the same as Danish public holidays: Christmas Eve (24 Dec) and New Year's Eve (31 Dec) are exchange closures, and Nasdaq lists no half trading days for Copenhagen in those years. Limitations:
+
+- Dates after 2027 are not yet published by Nasdaq. Until `holidays.json` is updated, weekdays in later years are treated as trading days.
+- If `holidays.json` is missing or unreadable, a warning is written and every exchange falls back to weekday/session-hours logic only. There is no online holiday refresh.
+- Unscheduled closures and any future early closes are not known in advance; add them to `holidays.json` by hand. Early closes cannot be expressed in `holidays.json` (it only marks whole-day closures).
+
+Existing installs: `Get-StockExchangeData` appends any built-in exchange missing from a cache younger than 30 days, so Nasdaq Copenhagen appears without `-ForceRefresh`. Cached entries are not overwritten.
 
 ## Data Sources
 
@@ -151,7 +180,7 @@ Edit the `holidays.json` file in the module's `Data` directory to add market hol
 
 ## Refreshing Exchange Data
 
-The module includes hardcoded fallback data for all 20 exchanges. To pull the latest trading hours from Wikipedia:
+The module includes hardcoded fallback data for all 21 exchanges. To pull the latest trading hours from Wikipedia:
 
 ```powershell
 Get-StockExchangeData -ForceRefresh

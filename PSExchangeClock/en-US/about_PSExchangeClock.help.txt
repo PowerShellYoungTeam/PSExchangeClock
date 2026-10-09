@@ -12,9 +12,10 @@ LONG DESCRIPTION
 
     The dashboard provides:
 
-    * Live countdown timers with color-coded status for 20 major stock
+    * Live countdown timers with color-coded status for 21 major stock
       exchanges worldwide (NYSE, NASDAQ, LSE, Tokyo, Shanghai, Hong Kong,
-      Frankfurt, Euronext Paris, Toronto, Sydney, and more)
+      Frankfurt, Euronext Paris, Toronto, Sydney, Nasdaq Copenhagen, and
+      more)
 
     * An interactive world map with clickable exchange markers and flyout
       detail panels (supports NASA Earth at Night satellite imagery or
@@ -92,6 +93,11 @@ CONFIGURATION
     Holiday overrides can be configured by editing the holidays.json file in
     the module's Data directory. Each exchange code (e.g., XNYS, XLON) maps
     to an array of ISO 8601 date strings (YYYY-MM-DD).
+
+    Nasdaq Copenhagen (XCSE) ships with the official Nasdaq closure dates for
+    2025-2027. Other exchanges ship with empty lists. Dates after the last
+    listed year are not known to the module: on those days the exchange is
+    treated as open on any weekday until the file is updated.
 
 SEE ALSO
     New-StockExchangeCountdownDashboard

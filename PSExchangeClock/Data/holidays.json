@@ -19,5 +19,14 @@
     "XMEX": [],
     "XSES": [],
     "XTAI": [],
-    "XMOS": []
+    "XMOS": [],
+    "_comment_XCSE": "Nasdaq Copenhagen equity closures from the official Nasdaq European Markets holiday schedule (https://www.nasdaq.com/european-market-activity/trading-hours), checked 2026-10-09. Nasdaq lists no half trading days for Copenhagen in 2025-2027. Not identical to Danish public holidays: Dec 24 and Dec 31 are exchange closures. Dates beyond 2027 are not yet published.",
+    "XCSE": [
+        "2025-01-01", "2025-04-17", "2025-04-18", "2025-04-21", "2025-05-29", "2025-05-30",
+        "2025-06-05", "2025-06-09", "2025-12-24", "2025-12-25", "2025-12-26", "2025-12-31",
+        "2026-01-01", "2026-04-02", "2026-04-03", "2026-04-06", "2026-05-14", "2026-05-15",
+        "2026-05-25", "2026-06-05", "2026-12-24", "2026-12-25", "2026-12-31",
+        "2027-01-01", "2027-03-25", "2027-03-26", "2027-03-29", "2027-05-06", "2027-05-07",
+        "2027-05-17", "2027-12-24", "2027-12-31"
+    ]
 }

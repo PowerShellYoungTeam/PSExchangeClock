@@ -1,0 +1,350 @@
+#requires -Version 7.0
+#requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
+
+# Deterministic tests: every status is evaluated at a fixed UTC instant and all
+# network calls are mocked. Run with: Invoke-Pester -Path ./Tests
+
+BeforeAll {
+    $script:moduleRoot = Join-Path (Split-Path $PSScriptRoot -Parent) 'PSExchangeClock'
+    $script:dataDir = Join-Path $script:moduleRoot 'Data'
+
+    . (Join-Path $script:moduleRoot 'Private/Get-ExchangeSessionStatus.ps1')
+    Import-Module (Join-Path $script:moduleRoot 'PSExchangeClock.psd1') -Force
+
+    # Load holidays exactly as the dashboard does
+    $script:holidays = @{}
+    $holidayJson = Get-Content (Join-Path $script:dataDir 'holidays.json') -Raw | ConvertFrom-Json
+    foreach ($prop in $holidayJson.PSObject.Properties) {
+        $script:holidays[$prop.Name] = @($prop.Value)
+    }
+
+    # Built-in exchange list via the offline path (Wikipedia scrape mocked to fail)
+    Mock -ModuleName PSExchangeClock Invoke-WebRequest { throw 'offline' }
+    $script:allExchanges = @(Get-StockExchangeData -ForceRefresh -OutputPath (Join-Path $TestDrive 'exchange-data.json') -WarningAction SilentlyContinue)
+    $script:xcse = $script:allExchanges | Where-Object { $_.Code -eq 'XCSE' }
+
+    function Get-Utc([string]$Iso) {
+        [DateTime]::SpecifyKind([DateTime]::ParseExact($Iso, 'yyyy-MM-ddTHH:mm:ss', [cultureinfo]::InvariantCulture), [DateTimeKind]::Utc)
+    }
+    function Get-XcseStatus([string]$UtcIso, [hashtable]$Holidays = $script:holidays) {
+        Get-ExchangeSessionStatus -Exchange $script:xcse -UtcNow (Get-Utc $UtcIso) -Holidays $Holidays
+    }
+}
+
+Describe 'Nasdaq Copenhagen exchange definition' {
+    It 'is a built-in exchange with the expected attributes' {
+        $script:xcse | Should -Not -BeNullOrEmpty
+        $script:xcse.Name | Should -Be 'Nasdaq Copenhagen'
+        $script:xcse.Country | Should -Be 'Denmark'
+        $script:xcse.City | Should -Be 'Copenhagen'
+        $script:xcse.TimeZoneId | Should -Be 'Romance Standard Time'
+        $script:xcse.OpenTimeLocal | Should -Be '09:00'
+        $script:xcse.CloseTimeLocal | Should -Be '17:00'
+        $script:xcse.OpeningAuctionStart | Should -Be '08:45'
+        $script:xcse.ClosingAuctionStart | Should -Be '16:55'
+        $script:xcse.Latitude | Should -Be 55.6761
+        $script:xcse.Longitude | Should -Be 12.5683
+        $script:xcse.IsDefault | Should -BeFalse
+    }
+
+    It 'uses a Windows timezone ID that maps to IANA Europe/Copenhagen' {
+        $windowsId = $null
+        [System.TimeZoneInfo]::TryConvertIanaIdToWindowsId('Europe/Copenhagen', [ref]$windowsId) | Should -BeTrue
+        $windowsId | Should -Be $script:xcse.TimeZoneId
+    }
+
+    It 'keeps all 20 previously supported exchanges' {
+        $expected = 'XNYS', 'XNAS', 'XLON', 'XPAR', 'XTKS', 'XSHG', 'XHKG', 'XTSE', 'XETR', 'XASX',
+        'XBOM', 'XNSE', 'XKRX', 'XSWX', 'XJSE', 'BVMF', 'XMEX', 'XSES', 'XTAI', 'XMOS'
+        foreach ($code in $expected) {
+            $script:allExchanges.Code | Should -Contain $code
+        }
+        $script:allExchanges.Count | Should -Be 21
+    }
+
+    It 'has exchange details for the flyout, in DKK and linked to OMXC25' {
+        $details = Get-Content (Join-Path $script:dataDir 'exchange-details.json') -Raw | ConvertFrom-Json
+        $details.XCSE | Should -Not -BeNullOrEmpty
+        $details.XCSE.Currency | Should -Be 'DKK'
+        $details.XCSE.PrimaryIndex | Should -Match 'OMXC25'
+    }
+
+    It 'is present in the shipped exchange-data.json fallback' {
+        $shipped = Get-Content (Join-Path $script:dataDir 'exchange-data.json') -Raw | ConvertFrom-Json
+        ($shipped.Exchanges | Where-Object { $_.Code -eq 'XCSE' }).TimeZoneId | Should -Be 'Romance Standard Time'
+    }
+}
+
+Describe 'Nasdaq Copenhagen session status' {
+    # 2026-10-08 is a Thursday; Copenhagen is on CEST (UTC+2)
+    Context 'Normal trading day' {
+        It 'is PreMarket before 09:00 with a countdown to the open' {
+            $s = Get-XcseStatus '2026-10-08T06:30:00'      # 08:30 local
+            $s.Status | Should -Be 'PreMarket'
+            $s.Text | Should -Be 'Opens in 00:30:00'
+            $s.CountdownTarget | Should -Be 'Open'
+        }
+
+        It 'reports the opening auction, not pre-market, from 08:45' {
+            (Get-XcseStatus '2026-10-08T06:44:59').Text | Should -Be 'Opens in 00:15:01'
+            $s = Get-XcseStatus '2026-10-08T06:45:00'      # 08:45 local
+            $s.Status | Should -Be 'PreMarket'
+            $s.Text | Should -Be 'Opening auction - opens in 00:15:00'
+            (Get-XcseStatus '2026-10-08T06:59:59').Text | Should -Be 'Opening auction - opens in 00:00:01'
+            (Get-XcseStatus '2026-10-08T07:00:00').Status | Should -Be 'Open'
+        }
+
+        It 'counts down more than an hour without rounding the hours up' {
+            $s = Get-XcseStatus '2026-10-08T00:24:00'      # 02:24 local, 6h36m to open
+            $s.Text | Should -Be 'Opens in 06:36:00'
+        }
+
+        It 'is Open during continuous trading' {
+            $s = Get-XcseStatus '2026-10-08T10:00:00'      # 12:00 local
+            $s.Status | Should -Be 'Open'
+            $s.Text | Should -Be 'Closes in 05:00:00'
+            $s.CountdownTarget | Should -Be 'Close'
+        }
+
+        It 'is ClosingSoon within 30 minutes of the close' {
+            $s = Get-XcseStatus '2026-10-08T14:40:00'      # 16:40 local
+            $s.Status | Should -Be 'ClosingSoon'
+            $s.Text | Should -Be 'Closes in 00:20:00'
+        }
+
+        It 'reports continuous trading one second before the closing auction' {
+            $s = Get-XcseStatus '2026-10-08T14:54:59'      # 16:54:59 local
+            $s.Text | Should -Be 'Closes in 00:05:01'
+        }
+
+        It 'reports the closing auction, not continuous trading, from 16:55' {
+            $s = Get-XcseStatus '2026-10-08T14:55:00'      # 16:55 local
+            $s.Status | Should -Be 'ClosingImminent'
+            $s.Text | Should -Be 'Closing auction - ends in 00:05:00'
+            $s = Get-XcseStatus '2026-10-08T14:57:30'      # 16:57:30 local
+            $s.Text | Should -Be 'Closing auction - ends in 00:02:30'
+        }
+
+        It 'is Closed at and after 17:00' {
+            (Get-XcseStatus '2026-10-08T15:00:00').Status | Should -Be 'Closed'
+            $s = Get-XcseStatus '2026-10-08T19:00:00'
+            $s.Status | Should -Be 'Closed'
+            $s.TimeRemaining | Should -BeNullOrEmpty
+            $s.CountdownTarget | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'Weekends' {
+        It 'is closed on Saturday' {
+            $s = Get-XcseStatus '2026-10-10T10:00:00'
+            $s.Status | Should -Be 'Closed'
+            $s.Text | Should -Be 'Weekend'
+        }
+
+        It 'is closed on Sunday' {
+            (Get-XcseStatus '2026-10-11T10:00:00').Text | Should -Be 'Weekend'
+        }
+    }
+
+    Context 'Exchange holidays (official Nasdaq schedule)' {
+        It 'ships the official 2025-2027 Copenhagen closures' {
+            $expected = @(
+                '2025-01-01', '2025-04-17', '2025-04-18', '2025-04-21', '2025-05-29', '2025-05-30',
+                '2025-06-05', '2025-06-09', '2025-12-24', '2025-12-25', '2025-12-26', '2025-12-31',
+                '2026-01-01', '2026-04-02', '2026-04-03', '2026-04-06', '2026-05-14', '2026-05-15',
+                '2026-05-25', '2026-06-05', '2026-12-24', '2026-12-25', '2026-12-31',
+                '2027-01-01', '2027-03-25', '2027-03-26', '2027-03-29', '2027-05-06', '2027-05-07',
+                '2027-05-17', '2027-12-24', '2027-12-31'
+            )
+            $script:holidays['XCSE'] | Should -Be $expected
+        }
+
+        It 'lists only weekdays' {
+            foreach ($d in $script:holidays['XCSE']) {
+                ([datetime]::ParseExact($d, 'yyyy-MM-dd', [cultureinfo]::InvariantCulture)).DayOfWeek | Should -BeIn @('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+            }
+        }
+
+        It 'is a Holiday on Christmas Eve (an exchange closure, not a Danish public holiday)' {
+            $s = Get-XcseStatus '2026-12-24T10:00:00'      # Thursday, CET
+            $s.Status | Should -Be 'Holiday'
+            $s.TimeRemaining | Should -BeNullOrEmpty
+        }
+
+        It 'is a Holiday on Constitution Day' {
+            (Get-XcseStatus '2026-06-05T10:00:00').Status | Should -Be 'Holiday'
+        }
+
+        It 'is a Holiday on the day after Ascension' {
+            (Get-XcseStatus '2026-05-15T10:00:00').Status | Should -Be 'Holiday'
+        }
+
+        It 'trades normally on the next listed trading day' {
+            (Get-XcseStatus '2026-12-28T10:00:00').Status | Should -Be 'Open'   # Monday, 11:00 CET
+        }
+
+        It 'does not apply another exchange''s holidays to Copenhagen' {
+            # 2026-01-06 is a Stockholm/Helsinki closure but not a Copenhagen one
+            (Get-XcseStatus '2026-01-06T10:00:00').Status | Should -Be 'Open'
+        }
+    }
+
+    Context 'CET/CEST transitions' {
+        It 'opens at 08:00 UTC on the Friday before CEST starts (CET, UTC+1)' {
+            (Get-XcseStatus '2026-03-27T07:30:00').Text | Should -Be 'Opens in 00:30:00'
+            (Get-XcseStatus '2026-03-27T08:00:00').Status | Should -Be 'Open'
+        }
+
+        It 'opens at 07:00 UTC on the Monday after CEST starts (UTC+2)' {
+            (Get-XcseStatus '2026-03-30T06:30:00').Text | Should -Be 'Opens in 00:30:00'
+            (Get-XcseStatus '2026-03-30T07:00:00').Status | Should -Be 'Open'
+            (Get-XcseStatus '2026-03-30T07:30:00').Status | Should -Be 'Open'
+        }
+
+        It 'closes at 15:00 UTC on the Friday before CEST ends' {
+            (Get-XcseStatus '2026-10-23T15:00:00').Status | Should -Be 'Closed'
+            (Get-XcseStatus '2026-10-23T14:57:00').Text | Should -Be 'Closing auction - ends in 00:03:00'
+        }
+
+        It 'closes at 16:00 UTC on the Monday after CEST ends (CET)' {
+            (Get-XcseStatus '2026-10-26T15:00:00').Text | Should -Be 'Closes in 01:00:00'
+            (Get-XcseStatus '2026-10-26T15:57:00').Text | Should -Be 'Closing auction - ends in 00:03:00'
+            (Get-XcseStatus '2026-10-26T16:00:00').Status | Should -Be 'Closed'
+        }
+
+        It 'treats both 2026 transition Sundays as weekends' {
+            (Get-XcseStatus '2026-03-29T10:00:00').Text | Should -Be 'Weekend'
+            (Get-XcseStatus '2026-10-25T10:00:00').Text | Should -Be 'Weekend'
+        }
+
+        It 'measures countdowns in real elapsed time across a weekday DST change' {
+            # EU transitions are on Sundays, so use a synthetic exchange in Israel,
+            # where DST started on Friday 2026-03-27 at 02:00 (UTC+2 -> UTC+3).
+            $synthetic = [PSCustomObject]@{
+                Code = 'TEST'; TimeZoneId = 'Israel Standard Time'; OpenTimeLocal = '09:00'; CloseTimeLocal = '17:00'
+            }
+            # 01:00 local (UTC+2) -> 09:00 local (UTC+3) is 7 real hours, not 8 wall-clock hours
+            $s = Get-ExchangeSessionStatus -Exchange $synthetic -UtcNow (Get-Utc '2026-03-26T23:00:00')
+            $s.Text | Should -Be 'Opens in 07:00:00'
+        }
+    }
+
+    Context 'Computer timezone differs from Copenhagen' {
+        It 'gives the same result for a UTC instant passed as a local-kind DateTime' {
+            $utc = Get-Utc '2026-10-08T10:00:00'
+            $a = Get-ExchangeSessionStatus -Exchange $script:xcse -UtcNow $utc -Holidays $script:holidays
+            $b = Get-ExchangeSessionStatus -Exchange $script:xcse -UtcNow $utc.ToLocalTime() -Holidays $script:holidays
+            $b.Text | Should -Be $a.Text
+            $b.Status | Should -Be $a.Status
+        }
+
+        It 'is independent of the process timezone (<_>)' -Skip:(-not ($IsLinux -or $IsMacOS)) -ForEach @('America/New_York', 'Asia/Tokyo', 'Pacific/Auckland') {
+            $privatePath = Join-Path $script:moduleRoot 'Private/Get-ExchangeSessionStatus.ps1'
+            $cmd = ". '$privatePath'; " +
+            '$x = [PSCustomObject]@{ Code = ''XCSE''; TimeZoneId = ''Romance Standard Time''; OpenTimeLocal = ''09:00''; CloseTimeLocal = ''17:00''; ClosingAuctionStart = ''16:55'' }; ' +
+            '$u = [DateTime]::SpecifyKind([DateTime]''2026-10-08T06:30:00'', ''Utc''); ' +
+            '(Get-ExchangeSessionStatus -Exchange $x -UtcNow $u).Text + ''|'' + (Get-ExchangeSessionStatus -Exchange $x -UtcNow $u.ToLocalTime()).Text + ''|'' + [TimeZoneInfo]::Local.Id'
+            $oldTz = $env:TZ
+            try {
+                $env:TZ = $_
+                $out = & (Get-Process -Id $PID).Path -NoProfile -NonInteractive -Command $cmd
+            }
+            finally {
+                $env:TZ = $oldTz
+            }
+            $parts = "$out".Trim() -split '\|'
+            $parts[2] | Should -Be $_
+            $parts[0] | Should -Be 'Opens in 00:30:00'
+            $parts[1] | Should -Be 'Opens in 00:30:00'
+        }
+    }
+
+    Context 'Missing or unavailable data' {
+        It 'falls back to weekday and session-hours logic when holiday data is missing' {
+            (Get-XcseStatus '2026-12-24T10:00:00' -Holidays @{}).Status | Should -Be 'Open'
+            (Get-XcseStatus '2026-12-24T10:00:00' -Holidays $null).Status | Should -Be 'Open'
+        }
+
+        It 'falls back when holiday data has no entry for Copenhagen' {
+            (Get-XcseStatus '2026-12-24T10:00:00' -Holidays @{ XNYS = @('2026-12-24') }).Status | Should -Be 'Open'
+        }
+
+        It 'does not throw for an unresolvable timezone ID' {
+            $broken = [PSCustomObject]@{ Code = 'XCSE'; TimeZoneId = 'No Such Zone'; OpenTimeLocal = '09:00'; CloseTimeLocal = '17:00' }
+            { Get-ExchangeSessionStatus -Exchange $broken -UtcNow (Get-Utc '2026-10-08T10:00:00') } | Should -Not -Throw
+        }
+
+        It 'returns no countdown while closed, so notifications are not raised' {
+            foreach ($t in '2026-10-08T19:00:00', '2026-10-10T10:00:00', '2026-12-24T10:00:00') {
+                $s = Get-XcseStatus $t
+                $s.Status | Should -Not -BeIn @('Open', 'ClosingSoon', 'ClosingImminent')
+                $s.TimeRemaining | Should -BeNullOrEmpty
+            }
+        }
+    }
+
+    Context 'Existing exchanges are unaffected by the closing-auction field' {
+        It 'keeps the plain countdown text for exchanges without ClosingAuctionStart' {
+            $xetr = $script:allExchanges | Where-Object { $_.Code -eq 'XETR' }
+            # 2026-10-08 15:20 UTC = 17:20 CEST, 10 minutes before the 17:30 close
+            $s = Get-ExchangeSessionStatus -Exchange $xetr -UtcNow (Get-Utc '2026-10-08T15:20:00')
+            $s.Text | Should -Be 'Closes in 00:10:00'
+            $s.Status | Should -Be 'ClosingSoon'
+        }
+    }
+}
+
+Describe 'Exchange selection and persistence' {
+    It 'activates Copenhagen when it is in the saved selection (after a JSON round trip)' {
+        $saved = @{ ActiveExchanges = @('XNYS', 'XCSE') } | ConvertTo-Json -Depth 3 | ConvertFrom-Json
+        Test-ExchangeActive -Exchange $script:xcse -UserPreferences $saved | Should -BeTrue
+    }
+
+    It 'handles a saved selection containing only Copenhagen' {
+        $saved = @{ ActiveExchanges = @('XCSE') } | ConvertTo-Json -Depth 3 | ConvertFrom-Json
+        Test-ExchangeActive -Exchange $script:xcse -UserPreferences $saved | Should -BeTrue
+    }
+
+    It 'leaves an existing user selection unchanged (Copenhagen not auto-enabled)' {
+        $example = Get-Content (Join-Path $script:dataDir 'user-preferences.example.json') -Raw | ConvertFrom-Json
+        Test-ExchangeActive -Exchange $script:xcse -UserPreferences $example | Should -BeFalse
+        $xnys = $script:allExchanges | Where-Object { $_.Code -eq 'XNYS' }
+        Test-ExchangeActive -Exchange $xnys -UserPreferences $example | Should -BeTrue
+    }
+
+    It 'falls back to IsDefault when no preferences are saved' {
+        Test-ExchangeActive -Exchange $script:xcse -UserPreferences $null | Should -BeFalse
+        $xnys = $script:allExchanges | Where-Object { $_.Code -eq 'XNYS' }
+        Test-ExchangeActive -Exchange $xnys -UserPreferences $null | Should -BeTrue
+    }
+}
+
+Describe 'Get-StockExchangeData cache handling' {
+    BeforeAll {
+        Mock -ModuleName PSExchangeClock Invoke-WebRequest { throw 'offline' }
+    }
+
+    It 'appends Copenhagen to a fresh cache that predates it, without changing cached entries' {
+        $path = Join-Path $TestDrive 'old-cache.json'
+        [PSCustomObject]@{
+            LastUpdated = (Get-Date).AddDays(-2).ToString('o')
+            Source      = 'test'
+            Version     = '1.0'
+            Exchanges   = @([PSCustomObject]@{ Name = 'Customised NYSE'; Code = 'XNYS'; TimeZoneId = 'Eastern Standard Time'; OpenTimeLocal = '09:30'; CloseTimeLocal = '15:00' })
+        } | ConvertTo-Json -Depth 5 | Set-Content $path
+
+        $result = @(Get-StockExchangeData -OutputPath $path)
+        ($result | Where-Object { $_.Code -eq 'XNYS' }).Name | Should -Be 'Customised NYSE'
+        ($result | Where-Object { $_.Code -eq 'XNYS' }).CloseTimeLocal | Should -Be '15:00'
+        ($result | Where-Object { $_.Code -eq 'XCSE' }).Name | Should -Be 'Nasdaq Copenhagen'
+        @($result | Where-Object { $_.Code -eq 'XNYS' }).Count | Should -Be 1
+        Should -Invoke -ModuleName PSExchangeClock Invoke-WebRequest -Times 0 -Exactly -Scope It
+    }
+
+    It 'falls back to built-in data, including Copenhagen, when offline with no cache' {
+        $path = Join-Path $TestDrive 'none.json'
+        $result = @(Get-StockExchangeData -OutputPath $path -WarningAction SilentlyContinue)
+        $result.Code | Should -Contain 'XCSE'
+        Test-Path $path | Should -BeTrue
+    }
+}
